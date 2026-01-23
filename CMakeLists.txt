@@ -23,6 +23,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(MusicManager
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        musiclist.h musiclist.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET MusicManager APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
