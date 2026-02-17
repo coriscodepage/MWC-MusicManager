@@ -61,7 +61,8 @@ void PrimaryListModel::addItem(const ListItem &item) {
     endInsertRows();
 }
 
-void PrimaryListModel::removeItem(int row) {
+void PrimaryListModel::removeItem(const QModelIndex &index) {
+    int row = index.row(); // FIXME
     if (row < 0 || row >= m_items.size()) return;
     beginRemoveRows(QModelIndex(), row, row);
     m_items.removeAt(row);

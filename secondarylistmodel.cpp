@@ -56,7 +56,8 @@ void SecondaryListModel::addItem(const MusicItem &item) {
     endInsertRows();
 }
 
-void SecondaryListModel::removeItem(int row) {
+void SecondaryListModel::removeItem(const QModelIndex &index) {
+    int row = index.row();
     if (row < 0 || row >= m_item->itemCount() || m_item == nullptr) return;
     beginRemoveRows(QModelIndex(), row, row);
     m_item->removeItem(row);
@@ -68,3 +69,8 @@ void SecondaryListModel::setSource(ListItem *item) {
     m_item = item;
     endResetModel();
 }
+
+ListItem *SecondaryListModel::getItem() {
+    return m_item;
+}
+

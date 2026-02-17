@@ -16,7 +16,7 @@ public:
     int columnCount(const QModelIndex &parent = QModelIndex()) const override;
 
     void addItem(const ListItem &item);
-    void removeItem(int row);
+    void removeItem(const QModelIndex &index);
     ListItem &getItem(const QModelIndex &index);
 
 private:

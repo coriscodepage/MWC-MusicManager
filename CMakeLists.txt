@@ -29,6 +29,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         primarylistmodel.h primarylistmodel.cpp
         listitem.h listitem.cpp
         secondarylistmodel.h secondarylistmodel.cpp
+        download.h download.cpp
+        downloaddialog.h downloaddialog.cpp downloaddialog.ui
 
     )
 # Define target properties for Android with Qt 6 as:
