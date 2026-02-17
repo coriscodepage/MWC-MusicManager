@@ -21,7 +21,7 @@ QVariant SecondaryListModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
         switch (index.column()) {
         case 0:
-            return m_item->getItem(index.row()).title();
+            return m_item->getItem(index.row())->title();
             break;
         default:
             break;
@@ -42,7 +42,7 @@ Qt::ItemFlags SecondaryListModel::flags(const QModelIndex &index) const {
 
 bool SecondaryListModel::setData(const QModelIndex &index, const QVariant &value, int role) {
     if (role == Qt::EditRole && m_item != nullptr) {
-        m_item->getItem(index.row()).setTitle(value.toString());
+        m_item->getItem(index.row())->setTitle(value.toString());
         emit dataChanged(index, index, {role});
         return true;
     }

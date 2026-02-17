@@ -31,6 +31,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         secondarylistmodel.h secondarylistmodel.cpp
         download.h download.cpp
         downloaddialog.h downloaddialog.cpp downloaddialog.ui
+        musicstorage.h musicstorage.cpp
+        musicobject.h musicobject.cpp
+        resources.qrc
 
     )
 # Define target properties for Android with Qt 6 as:

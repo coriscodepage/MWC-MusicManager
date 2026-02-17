@@ -1,7 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "download.h"
+#include "musicstorage.h"
 #include "primarylistmodel.h"
 #include "secondarylistmodel.h"
 #include <QMainWindow>
@@ -42,12 +42,12 @@ private:
     Ui::MainWindow *ui;
     PrimaryListModel *m_primarymodel;
     SecondaryListModel *m_secondarymodel;
-    Downloader m_downloader;
     QDir m_gameDir;
     QDir m_appDir;
-    QDir m_musicDir;
+    MusicStorage m_musicStore;
     void prepareWorkingDir();
     void prepareAppDir();
     void songSelected(const QModelIndex &index);
+    void songUpdated(const QModelIndex &index);
 };
 #endif // MAINWINDOW_H

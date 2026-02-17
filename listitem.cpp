@@ -19,8 +19,8 @@ void ListItem::addItem(const MusicItem &item) {
     m_items.append(item);
 }
 
-MusicItem &ListItem::getItem(int index) {
-    return m_items[index];
+MusicItem *ListItem::getItem(int row) {
+    return &m_items[row];
 }
 const MusicItem &ListItem::getItem(int index) const {
     return m_items[index];

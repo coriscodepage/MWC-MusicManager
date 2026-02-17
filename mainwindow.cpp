@@ -1,6 +1,5 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
-#include "downloaddialog.h"
 #include "primarylistmodel.h"
 #include <QSettings>
 #include <QFileDialog>
@@ -10,11 +9,11 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    MusicStorage m_musicStore(this);
     prepareWorkingDir();
-    qDebug() << QString("Game path: %1").arg(m_gameDir.absolutePath());
+    qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     prepareAppDir();
-    qDebug() << QString("Application path: %1").arg(m_appDir.absolutePath());
-    qDebug() << QString("Music storage path: %1").arg(m_musicDir.absolutePath());
+    qDebug() << QString("[MainWindow] Application path: %1").arg(m_appDir.absolutePath());
     m_primarymodel = new PrimaryListModel(this);
     m_secondarymodel = new SecondaryListModel(this);
     ui->listView->setModel(m_primarymodel);
@@ -49,8 +48,8 @@ void MainWindow::handleSecondaryListSelectionChanged(const QModelIndex &index, c
     Q_UNUSED(previous);
     if (!index.isValid()) return;
     //qDebug() << QString("Secondary: {%1}").arg(index.row());
-    auto song = m_secondarymodel->getItem();
-    ui->songLabel->setText(song->getItem(index.row()).title());
+    auto listItem = m_secondarymodel->getItem();
+    ui->songLabel->setText(listItem->getItem(index.row())->title());
     songSelected(index);
 }
 
@@ -65,7 +64,7 @@ void MainWindow::on_addCD_clicked() {
 
 
 void MainWindow::on_newItem_clicked() {
-    m_secondarymodel->addItem(MusicItem("New song"));
+    m_secondarymodel->addItem(MusicItem("New song", nullptr));
     QModelIndex index = m_secondarymodel->index(m_secondarymodel->rowCount()-1);
     ui->listItemView->setCurrentIndex(index);
     ui->listItemView->setFocus();
@@ -75,7 +74,7 @@ void MainWindow::on_newItem_clicked() {
 void MainWindow::on_deleteList_clicked() {
     auto selections = ui->listView->selectionModel()->selection().indexes();
     if (selections.empty()) return;
-    auto selection = selections[0];
+    QModelIndex selection = selections.constFirst();
     if (selection.row() > 0) {
         handlePrimaryListSelectionChanged(selection, selection);
         ui->listItemView->setFocus();
@@ -93,14 +92,17 @@ void MainWindow::on_deleteList_clicked() {
 
 
 void MainWindow::on_downloadItem_clicked() {
-    auto dialog = DownloadDialog();
-    int res = dialog.exec();
-    if (res == QDialog::Accepted) {
-        auto url = dialog.url();
-        qDebug() << url;
-        m_downloader.downloadSong(url, m_musicDir);
+    auto song = m_musicStore.downloadMusic(this);
+    if (song == nullptr) {
+        qWarning() << "[MainWindow] Download failed";
+        return;
     }
-
+    auto selections = ui->listItemView->selectionModel()->selection().indexes();
+    if (selections.empty()) return; // TODO: In cases like this some logging would be in order.
+    QModelIndex selection = selections.constFirst();
+    QModelIndex index = m_secondarymodel->index(selection.row());
+    m_secondarymodel->getItem()->getItem(index.row())->setSong(song);
+    songUpdated(index);
 }
 
 
@@ -148,26 +150,27 @@ void MainWindow::prepareAppDir() {
 
     if (!m_appDir.exists(subDirName)) {
         if (!m_appDir.mkpath(subDirName)) {
-            qWarning() << "Failed to create app subdirectory";
+            qWarning() << "[MainWindow] Failed to create app subdirectory";
             return;
         }
     }
     if (!m_appDir.cd(subDirName)) {
-        qWarning() << "Failed to enter app subdirectory";
+        qWarning() << "[MainWindow] Failed to enter app subdirectory";
         return;
     }
 
     if (!m_appDir.exists(musicDirName)) {
         if (!m_appDir.mkpath(musicDirName)) {
-            qWarning() << "Failed to create music directory";
+            qWarning() << "[MainWindow] Failed to create music directory";
             return;
         }
     }
-    m_musicDir = m_appDir;
-    if (!m_musicDir.cd(musicDirName)) {
-        qWarning() << "Failed to enter music subdirectory";
+    QDir musicDir = m_appDir;
+    if (!musicDir.cd(musicDirName)) {
+        qWarning() << "[MainWindow] Failed to enter music subdirectory";
         return;
     }
+    m_musicStore.setMusicDir(musicDir);
 }
 
 void MainWindow::showListContextMenu(const QPoint &pos)
@@ -216,5 +219,15 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
 void MainWindow::songSelected(const QModelIndex &index) {
     ui->downloadControls->setEnabled(true);
+    auto pixmap = QPixmap(":/defaults/no-image.webp");
+    pixmap = pixmap.scaled(ui->centralwidget->size()/4);
+    ui->songArt->setPixmap(pixmap);
+    ui->songLabel->setText("");
+}
 
+void MainWindow::songUpdated(const QModelIndex &index) {
+    auto pixmap = m_secondarymodel->getItem()->getItem(index.row())->pixmap();
+    pixmap = pixmap.scaled(ui->centralwidget->size()/4);
+    ui->songArt->setPixmap(pixmap);
+    ui->songLabel->setText(m_secondarymodel->getItem()->getItem(index.row())->title());
 }

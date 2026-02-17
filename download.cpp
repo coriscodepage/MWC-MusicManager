@@ -3,9 +3,11 @@
 #include <qdebug.h>
 #include <QProcess>
 #include <qurl.h>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProgressDialog>
 
-
-Downloader::Downloader() {
+Downloader::Downloader(QObject* parent) : QObject(parent) {
     #ifdef Q_OS_WIN
         m_ytdlpPath = "yt-dlp.exe";
     #elif defined(Q_OS_MAC)
@@ -17,21 +19,59 @@ Downloader::Downloader() {
     #endif
 }
 
-void Downloader::downloadSong(const QUrl &url, const QDir &path) const {
-    QProcess process;
+void Downloader::downloadSong(const QUrl &url, const QDir &path, QWidget *parent) {
+    QProcess *process = new QProcess(this);
     QStringList arguments;
     QString ytdlpPath = QString(path.absolutePath() % "/%1").arg("%(title)s.%(ext)s");
-    qDebug() << QString("Downloading to: %1").arg(ytdlpPath);
-    arguments << "-x" << "--write-thumbnail" << "--audio-format" << "vorbis" << "--no-playlist" << "--print"  << "%(title)s\n%(uploader)s\n%(duration)s" << url.toDisplayString() << "-o" << ytdlpPath;
+    qDebug() << QString("[Downloader] Downloading to: %1").arg(ytdlpPath);
+    arguments << "-x" << "--write-thumbnail" << "--audio-format" << "vorbis" << "--no-playlist" << "--print-json" << url.toDisplayString() << "-o" << ytdlpPath;
 
-    process.start(m_ytdlpPath, arguments);
+    QProgressDialog *progress = new QProgressDialog("Downloading...", "Abort Download", 0, 100, parent);
+    progress->setWindowModality(Qt::ApplicationModal);
+    progress->setMinimumDuration(0);
+    progress->setValue(50);
+    progress->show();
 
-    if (!process.waitForStarted()) {
-        qWarning() << "Failed to start yt-dlp";
+    connect(process, &QProcess::finished, this,
+        [this, process, path, progress](int exitCode, QProcess::ExitStatus status) {
+
+            if (exitCode == 0) {
+                qDebug() << "[Downloader] Download success";
+                QString output = process->readAllStandardOutput();
+                progress->setValue(100);
+                handleDownloadFinished(output, path);
+            } else {
+                qWarning() << "[Downloader] Download failed";
+                qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
+                progress->setValue(100);
+                emit downloadFinished(nullptr);
+            }
+
+            process->deleteLater();
+            progress->deleteLater();
+        }
+    );
+
+    connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
+        if (process)
+            process->kill();
+        progress->setValue(100);
+    });
+
+    process->start(m_ytdlpPath, arguments);
+
+    if (!process->waitForStarted()) {
+        qWarning() << "[Downloader] Failed to start yt-dlp";
         return;
     }
 
-    process.waitForFinished(-1); // FIXME: Infinite wait.
-    qDebug() << process.readAllStandardOutput();
-    qDebug() << process.readAllStandardError();
+}
+
+void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath) {
+    QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
+    QString title = doc.object().value("title").toString();
+    int duration = doc.object().value("duration").toInt();
+    QString artist = doc.object().value("uploader").toString();
+    auto song = std::make_shared<MusicObject>(title, duration, artist, songPath);
+    emit downloadFinished(song);
 }

@@ -11,7 +11,7 @@ public:
     const bool type() const;
     void setTitle(const QString &title);
     void addItem(const MusicItem &item);
-    MusicItem &getItem(int index);
+    MusicItem *getItem(int row);
     const MusicItem &getItem(int index) const;
     void removeItem(int index);
     int itemCount();
