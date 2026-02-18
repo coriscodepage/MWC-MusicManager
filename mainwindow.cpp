@@ -3,19 +3,26 @@
 #include "primarylistmodel.h"
 #include <QSettings>
 #include <QFileDialog>
+#include <QAudioOutput>
+#include <QCloseEvent>
+#include <QClipboard>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    MusicStorage m_musicStore(this);
+    m_mediaPlayer = new QMediaPlayer(this);
+    m_musicStore = new MusicStorage(this);
+    QAudioOutput* audioOutput = new QAudioOutput(this);
+    audioOutput->setVolume(50);
+    m_mediaPlayer->setAudioOutput(audioOutput);
     prepareWorkingDir();
     qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     prepareAppDir();
     qDebug() << QString("[MainWindow] Application path: %1").arg(m_appDir.absolutePath());
-    m_primarymodel = new PrimaryListModel(this);
-    m_secondarymodel = new SecondaryListModel(this);
+    m_primarymodel = new PrimaryListModel(this, m_musicStore);
+    m_secondarymodel = new SecondaryListModel(this, m_musicStore);
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
 
@@ -27,6 +34,24 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->listView, &QListView::customContextMenuRequested, this, &MainWindow::showListContextMenu);
     ui->listItemView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listItemView, &QListView::customContextMenuRequested, this, &MainWindow::showListItemContextMenu);
+
+    connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveAppData);
+    connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copy);
+    connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
+    connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
+
+    ui->listItemView->setDragEnabled(true);
+    ui->listItemView->setAcceptDrops(true);
+    ui->listItemView->setDropIndicatorShown(true);
+    ui->listItemView->setDefaultDropAction(Qt::MoveAction);
+
+    ui->listView->setDragEnabled(true);
+    ui->listView->setAcceptDrops(true);
+    ui->listView->setDropIndicatorShown(true);
+    ui->listView->setDefaultDropAction(Qt::MoveAction);
+
+    if(QFileInfo(m_appDir.filePath("data.msc")).isFile())
+        loadAppData();
 }
 
 MainWindow::~MainWindow()
@@ -38,7 +63,7 @@ MainWindow::~MainWindow()
 void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
     Q_UNUSED(previous);
     if (!index.isValid()) return;
-    //qDebug() << QString("Primary: {%1}").arg(index.row());
+    qDebug() << QString("Primary: {%1}").arg(index.row());
     ListItem &data = m_primarymodel->getItem(index);
     m_secondarymodel->setSource(&data);
     ui->listItemView->setEnabled(true);
@@ -47,13 +72,12 @@ void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, con
 void MainWindow::handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
     Q_UNUSED(previous);
     if (!index.isValid()) return;
-    //qDebug() << QString("Secondary: {%1}").arg(index.row());
-    auto listItem = m_secondarymodel->getItem();
-    ui->songLabel->setText(listItem->getItem(index.row())->title());
+    qDebug() << QString("Secondary: {%1}").arg(index.row());
     songSelected(index);
 }
 
 void MainWindow::on_addCD_clicked() {
+    setWindowModified(true);
     ui->listView->setFocus();
     m_primarymodel->addItem(ListItem("New list", true));
     QModelIndex index = m_primarymodel->index(m_primarymodel->rowCount()-1);
@@ -64,7 +88,8 @@ void MainWindow::on_addCD_clicked() {
 
 
 void MainWindow::on_newItem_clicked() {
-    m_secondarymodel->addItem(MusicItem("New song", nullptr));
+    setWindowModified(true);
+    m_secondarymodel->insertRow(m_secondarymodel->rowCount());
     QModelIndex index = m_secondarymodel->index(m_secondarymodel->rowCount()-1);
     ui->listItemView->setCurrentIndex(index);
     ui->listItemView->setFocus();
@@ -72,6 +97,7 @@ void MainWindow::on_newItem_clicked() {
 
 
 void MainWindow::on_deleteList_clicked() {
+    //setWindowModified(true);
     auto selections = ui->listView->selectionModel()->selection().indexes();
     if (selections.empty()) return;
     QModelIndex selection = selections.constFirst();
@@ -87,12 +113,20 @@ void MainWindow::on_deleteList_clicked() {
         ui->listItemView->setEnabled(false);
         ui->downloadControls->setEnabled(false);
     }
+    for(auto &i : m_primarymodel->getItems()) {
+        for (auto &j : i.getItems()) {
+            QString hash = j.getHash();
+            j.setSong(nullptr);
+            m_musicStore->checkedRemoveSong(hash);
+        }
+    }
     m_primarymodel->removeItem(selection);
 }
 
 
 void MainWindow::on_downloadItem_clicked() {
-    auto song = m_musicStore.downloadMusic(this);
+    setWindowModified(true);
+    auto song = m_musicStore->downloadMusic(this);
     if (song == nullptr) {
         qWarning() << "[MainWindow] Download failed";
         return;
@@ -101,7 +135,9 @@ void MainWindow::on_downloadItem_clicked() {
     if (selections.empty()) return; // TODO: In cases like this some logging would be in order.
     QModelIndex selection = selections.constFirst();
     QModelIndex index = m_secondarymodel->index(selection.row());
-    m_secondarymodel->getItem()->getItem(index.row())->setSong(song);
+    auto listItem = m_secondarymodel->getItem();
+    listItem->getItem(index.row())->setHash(song->getHash());
+    listItem->getItem(index.row())->setSong(song);
     songUpdated(index);
 }
 
@@ -170,12 +206,14 @@ void MainWindow::prepareAppDir() {
         qWarning() << "[MainWindow] Failed to enter music subdirectory";
         return;
     }
-    m_musicStore.setMusicDir(musicDir);
+    m_musicStore->setMusicDir(musicDir);
 }
 
 void MainWindow::showListContextMenu(const QPoint &pos)
 {
     QModelIndex index = ui->listView->indexAt(pos);
+    QModelIndexList list;
+    list << index;
 
     if (!index.isValid())
         return;
@@ -184,19 +222,44 @@ void MainWindow::showListContextMenu(const QPoint &pos)
 
     QAction action1("Edit", this);
     QAction action2("Delete", this);
+    QAction action3("Copy", this);
+    QAction action4("Cut", this);
+    QAction action5("Paste", this);
     contextMenu.addAction(&action1);
     contextMenu.addAction(&action2);
+    contextMenu.addAction(&action3);
+    contextMenu.addAction(&action4);
+    contextMenu.addAction(&action5);
 
     auto res = contextMenu.exec(ui->listView->viewport()->mapToGlobal(pos));
     if (res == &action1)
         ui->listView->edit(index);
-    else if (res == &action2)
+    else if (res == &action2) {
+        m_secondarymodel->setSource(nullptr);
         m_primarymodel->removeItem(index);
+    } else if (res == &action3) {
+        QMimeData *data = m_primarymodel->mimeData(list);
+        QApplication::clipboard()->setMimeData(data);
+    } else if (res == &action4) {
+        QMimeData *data = m_primarymodel->mimeData(list);
+        QApplication::clipboard()->setMimeData(data);
+        int firstRow = list.first().row();
+        int rowCount = list.count();
+        m_primarymodel->removeRows(firstRow, rowCount);
+        m_secondarymodel->setSource(nullptr);
+    } else if (res == &action5) {
+        m_primarymodel->removeRow(index.row());
+        const QMimeData *data = QApplication::clipboard()->mimeData();
+        m_primarymodel->dropMimeData(data, Qt::CopyAction, index.row(), 0, QModelIndex());
+        ui->listView->setCurrentIndex(index);
+    }
 }
 
 void MainWindow::showListItemContextMenu(const QPoint &pos)
 {
     QModelIndex index = ui->listItemView->indexAt(pos);
+    QModelIndexList list;
+    list << index;
 
     if (!index.isValid())
         return;
@@ -205,29 +268,190 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
     QAction action1("Edit", this);
     QAction action2("Delete", this);
+    QAction action3("Copy", this);
+    QAction action4("Cut", this);
+    QAction action5("Paste", this);
     contextMenu.addAction(&action1);
     contextMenu.addAction(&action2);
+    contextMenu.addAction(&action3);
+    contextMenu.addAction(&action4);
+    contextMenu.addAction(&action5);
 
     auto res = contextMenu.exec(ui->listItemView->viewport()->mapToGlobal(pos));
     if (res == &action1)
         ui->listItemView->edit(index);
     else if (res == &action2) {
-        m_secondarymodel->removeItem(index);
+        m_secondarymodel->removeRow(index.row());
         if (m_secondarymodel->rowCount() == 0) ui->downloadControls->setEnabled(false);
+    } else if (res == &action3) {
+        QMimeData *data = m_secondarymodel->mimeData(list);
+        QApplication::clipboard()->setMimeData(data);
+    } else if (res == &action4) {
+        QMimeData *data = m_secondarymodel->mimeData(list);
+        QApplication::clipboard()->setMimeData(data);
+
+        int firstRow = list.first().row();
+        int rowCount = list.count();
+        m_secondarymodel->removeRows(firstRow, rowCount);
+    } else if (res == &action5) {
+        m_secondarymodel->removeRow(index.row());
+        const QMimeData *data = QApplication::clipboard()->mimeData();
+        m_secondarymodel->dropMimeData(data, Qt::CopyAction, index.row(), 0, QModelIndex());
+        ui->listItemView->setCurrentIndex(index);
     }
 }
 
 void MainWindow::songSelected(const QModelIndex &index) {
     ui->downloadControls->setEnabled(true);
-    auto pixmap = QPixmap(":/defaults/no-image.webp");
-    pixmap = pixmap.scaled(ui->centralwidget->size()/4);
+    auto listItem = m_secondarymodel->getItem();
+    auto pixmap = listItem->getItem(index.row())->pixmap();
+    pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText("");
+    ui->songLabel->setText(listItem->getItem(index.row())->title());
 }
 
 void MainWindow::songUpdated(const QModelIndex &index) {
+    setWindowModified(true);
     auto pixmap = m_secondarymodel->getItem()->getItem(index.row())->pixmap();
-    pixmap = pixmap.scaled(ui->centralwidget->size()/4);
+    pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
     ui->songLabel->setText(m_secondarymodel->getItem()->getItem(index.row())->title());
+}
+
+void MainWindow::on_play_clicked() {
+    m_musicStore->importMusic(QDir());
+    auto selections = ui->listItemView->selectionModel()->selection().indexes();
+    if (selections.empty()) return;
+    auto selection = selections.first();
+    auto listItem = m_secondarymodel->getItem();
+    auto musicPath = listItem->getItem(selection.row())->songPath();
+    if (!musicPath.isFile()) return;
+    if (!musicPath.exists()) return;
+    m_mediaPlayer->setSource(musicPath.absoluteFilePath());
+    m_mediaPlayer->play();
+}
+
+
+void MainWindow::on_stop_clicked() {
+    m_mediaPlayer->stop();
+}
+
+void MainWindow::saveAppData() {
+    QFileInfo savePath = QFileInfo(m_appDir.filePath("data.msc"));
+    qDebug() << "[MainWindow] Save start";
+    qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
+    QFile file(savePath.absoluteFilePath());
+    if (!file.open(QIODevice::WriteOnly))
+        return;
+    QDataStream out(&file);
+    auto primaryItems = m_primarymodel->getItems();
+    auto songs = m_musicStore->getSongs();
+    out << primaryItems;
+    out << songs;
+    setWindowModified(false);
+    qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.length()).arg(songs.keys().length());
+}
+void MainWindow::loadAppData() {
+    qDebug() << "[MainWindow] Load start";
+    QFile file(m_appDir.filePath("data.msc"));
+
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    QDataStream in(&file);
+    QVector<ListItem> primaryList;
+    QHash<QString, MusicObject> songsOwned;
+    in >> primaryList >> songsOwned;
+    m_primarymodel->setItems(primaryList);
+    QHash<QString, std::shared_ptr<MusicObject>> songsShared;
+
+    for (auto it = songsOwned.constBegin(); it != songsOwned.constEnd(); it++) {
+        auto key = it.key();
+        auto value = it.value();
+        qDebug() << QString("[MainWindow] Loading song key: %1, value: %2").arg(key, value.title());
+        songsShared.insert(key, std::make_shared<MusicObject>(value));
+    }
+
+    m_musicStore->setSongs(songsShared);
+    int secondarySum = 0;
+    for (auto &prim : m_primarymodel->getItems()) {
+        qDebug() << QString("[MainWindow] Primary list has %1 elements").arg(prim.itemCount());
+        for (auto &sec : prim.getItems()){
+            qDebug() << QString("[MainWindow] List %1 title: %2 ").arg(prim.title(), sec.title());
+            QString hash = sec.getHash();
+            auto songPtr = m_musicStore->queryMusic(hash);
+            sec.setSong(songPtr);
+            secondarySum++;
+        }
+    }
+    qDebug() << QString("[MainWindow] Loaded %1 primary elements, %2 secondary elements and %3 songs").arg(m_primarymodel->getItems().length()).arg(secondarySum).arg(songsShared.size());
+}
+
+QListView *MainWindow::currentListView() const {
+    if (ui->listView->hasFocus())
+        return ui->listView;
+
+    if (ui->listItemView->hasFocus())
+        return ui->listItemView;
+
+    return nullptr;
+}
+
+void MainWindow::copy() {
+    auto view = currentListView();
+    if (!view)
+        return;
+
+    auto model = view->model();
+    auto indexes = view->selectionModel()->selectedIndexes();
+
+    QMimeData *data = model->mimeData(indexes);
+    QApplication::clipboard()->setMimeData(data);
+}
+
+void MainWindow::paste() {
+    auto view = currentListView();
+    if (!view)
+        return;
+
+    auto model = view->model();
+    const QMimeData *data = QApplication::clipboard()->mimeData();
+
+    model->dropMimeData(data, Qt::CopyAction, -1, 0, QModelIndex());
+
+    view->setCurrentIndex(model->index(model->rowCount() - 1, 0));
+
+
+}
+
+void MainWindow::cut() {
+    auto view = currentListView();
+    if (!view)
+        return;
+
+    auto model = view->model();
+    auto indexes = view->selectionModel()->selectedIndexes();
+
+    if (indexes.isEmpty())
+        return;
+
+    QMimeData *data = model->mimeData(indexes);
+    QApplication::clipboard()->setMimeData(data);
+
+    int firstRow = indexes.first().row();
+    int rowCount = indexes.count();
+    model->removeRows(firstRow, rowCount);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (!isWindowModified()) {
+        event->accept();
+        return;
+    } else {
+        saveAppData();
+        event->accept();
+    }
+
+
 }

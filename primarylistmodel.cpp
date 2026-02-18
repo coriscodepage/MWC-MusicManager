@@ -1,7 +1,10 @@
 #include "primarylistmodel.h"
+#include <QMimeData>
+#include <qitemselectionmodel.h>
 
-PrimaryListModel::PrimaryListModel(QObject *parent)
+PrimaryListModel::PrimaryListModel(QObject *parent, MusicStorage *musicStore)
     : QAbstractListModel{parent}
+    , m_musicStore(musicStore)
 {}
 
 int PrimaryListModel::rowCount(const QModelIndex &parent) const {
@@ -35,11 +38,13 @@ QVariant PrimaryListModel::data(const QModelIndex &index, int role) const {
 
 Qt::ItemFlags PrimaryListModel::flags(const QModelIndex &index) const {
     if (!index.isValid())
-        return Qt::NoItemFlags;
+        return Qt::ItemIsDropEnabled | Qt::NoItemFlags;
 
     return Qt::ItemIsSelectable
            | Qt::ItemIsEnabled
-           | Qt::ItemIsEditable;
+           | Qt::ItemIsEditable
+           | Qt::ItemIsDragEnabled
+           | Qt::ItemIsDropEnabled;
 }
 
 bool PrimaryListModel::setData(const QModelIndex &index, const QVariant &value, int role) {
@@ -65,6 +70,127 @@ void PrimaryListModel::removeItem(const QModelIndex &index) {
     int row = index.row(); // FIXME
     if (row < 0 || row >= m_items.size()) return;
     beginRemoveRows(QModelIndex(), row, row);
+    for(auto &item : m_items[row].getItems()) {
+        item.setSong(nullptr);
+    }
     m_items.removeAt(row);
     endRemoveRows();
+}
+
+const QVector<ListItem> &PrimaryListModel::getItems() const {
+    return m_items;
+}
+
+QVector<ListItem> &PrimaryListModel::getItems() {
+    return m_items;
+}
+
+void PrimaryListModel::setItems(const QVector<ListItem> &items) {
+    beginResetModel();
+    m_items = items;
+    endResetModel();
+}
+
+void  PrimaryListModel::insertAt(const ListItem &item, int index) {
+    if (index >= 0) {
+        beginInsertRows(QModelIndex(), index, index);
+        m_items.insert(index, item);
+        endInsertRows();
+    } else {
+        beginInsertRows(QModelIndex(), m_items.size(), m_items.size());
+        m_items.append(item);
+        endInsertRows();
+    }
+}
+
+QStringList PrimaryListModel::mimeTypes() const {
+    return { "application/x-msc-list" };
+}
+
+QMimeData* PrimaryListModel::mimeData(const QModelIndexList &indexes) const {
+    QMimeData *mime = new QMimeData;
+
+    QByteArray encoded;
+    QDataStream stream(&encoded, QIODevice::WriteOnly);
+
+    for (const QModelIndex &index : indexes) {
+        if (!index.isValid())
+            continue;
+
+        for (auto &index : indexes)
+            stream << m_items[index.row()];
+    }
+    m_draggedIndexes = indexes;
+    mime->setData("application/x-msc-list", encoded);
+    return mime;
+}
+
+bool PrimaryListModel::canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const {
+    Q_UNUSED(row)
+    Q_UNUSED(column)
+    Q_UNUSED(parent)
+
+    if (!data)
+        return false;
+
+    if (!data->hasFormat("application/x-msc-list"))
+        return false;
+
+    if (action != Qt::CopyAction && action != Qt::MoveAction)
+        return false;
+
+    if (data->data("application/x-msc-list").isEmpty())
+        return false;
+
+    return true;
+}
+
+bool PrimaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) {
+    if (!data->hasFormat("application/x-msc-list"))
+        return false;
+
+    QByteArray encoded = data->data("application/x-msc-list");
+    QDataStream stream(&encoded, QIODevice::ReadOnly);
+    QItemSelection selection;
+    int i = 0;
+    while (!stream.atEnd()) {
+        ListItem item;
+        stream >> item;
+        for (auto &s : item.getItems()) {
+            QString hash = s.getHash();
+            auto songPtr = m_musicStore->queryMusic(hash);
+            s.setSong(songPtr);
+        }
+        insertAt(item, row + i);
+        i++;
+    }
+    return true;
+}
+
+Qt::DropActions PrimaryListModel::supportedDropActions() const {
+    return Qt::CopyAction | Qt::MoveAction;
+}
+
+bool PrimaryListModel::removeRows(int row, int count, const QModelIndex &parent) {
+    Q_UNUSED(parent)
+    if (row < 0 || row >= m_items.size() || count <= 0) return false;
+    qDebug() << QString("[PrimaryListModel] Removing %1 row(s) starting from %2 in primary list").arg(count).arg(row);
+    beginRemoveRows(QModelIndex(), row, row + count - 1);
+    for (int i = row + count - 1; i >= row; i--) {
+        m_items.removeAt(i);
+    }
+    endRemoveRows();
+    return true;
+}
+
+bool PrimaryListModel::insertRows(int row, int count, const QModelIndex &parent) {
+    Q_UNUSED(parent)
+
+    if (row < 0 || row > m_items.size() || count <= 0) return false;
+    qDebug() << QString("[PrimaryListModel] Inserting %1 row(s) starting from %2 in primary list").arg(count).arg(row);
+    beginInsertRows(QModelIndex(), row, row + count - 1);
+    for (int i = row; i < row + count; i++)
+        m_items.insert(i, ListItem("New list"));
+    endInsertRows();
+    return true;
 }

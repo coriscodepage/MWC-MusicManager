@@ -19,7 +19,7 @@ Downloader::Downloader(QObject* parent) : QObject(parent) {
     #endif
 }
 
-void Downloader::downloadSong(const QUrl &url, const QDir &path, QWidget *parent) {
+void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &hash, QWidget *parent) {
     QProcess *process = new QProcess(this);
     QStringList arguments;
     QString ytdlpPath = QString(path.absolutePath() % "/%1").arg("%(title)s.%(ext)s");
@@ -33,13 +33,13 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, QWidget *parent
     progress->show();
 
     connect(process, &QProcess::finished, this,
-        [this, process, path, progress](int exitCode, QProcess::ExitStatus status) {
+        [this, process, path, progress, hash](int exitCode, QProcess::ExitStatus status) {
 
             if (exitCode == 0) {
                 qDebug() << "[Downloader] Download success";
                 QString output = process->readAllStandardOutput();
                 progress->setValue(100);
-                handleDownloadFinished(output, path);
+                handleDownloadFinished(output, path, hash);
             } else {
                 qWarning() << "[Downloader] Download failed";
                 qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
@@ -49,14 +49,17 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, QWidget *parent
 
             process->deleteLater();
             progress->deleteLater();
-        }
+        },
+            Qt::SingleShotConnection
     );
 
     connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
         if (process)
             process->kill();
         progress->setValue(100);
-    });
+    },
+            Qt::SingleShotConnection
+    );
 
     process->start(m_ytdlpPath, arguments);
 
@@ -67,11 +70,11 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, QWidget *parent
 
 }
 
-void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath) {
+void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash) {
     QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
     QString title = doc.object().value("title").toString();
     int duration = doc.object().value("duration").toInt();
     QString artist = doc.object().value("uploader").toString();
-    auto song = std::make_shared<MusicObject>(title, duration, artist, songPath);
+    auto song = std::make_shared<MusicObject>(title, duration, artist, songPath, hash);
     emit downloadFinished(song);
 }

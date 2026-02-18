@@ -6,6 +6,8 @@
 #include "secondarylistmodel.h"
 #include <QMainWindow>
 #include <QDir>
+#include <QMediaPlayer>
+#include <qlistview.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -25,6 +27,8 @@ private slots:
     void on_addCD_clicked();
     void handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
     void handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
+    void saveAppData();
+    void loadAppData();
 
     void on_newItem_clicked();
 
@@ -38,16 +42,28 @@ private slots:
 
     void showListItemContextMenu(const QPoint &pos);
 
+    void on_play_clicked();
+
+    void on_stop_clicked();
+
 private:
     Ui::MainWindow *ui;
     PrimaryListModel *m_primarymodel;
     SecondaryListModel *m_secondarymodel;
+    QMediaPlayer *m_mediaPlayer;
+    MusicStorage *m_musicStore;
     QDir m_gameDir;
     QDir m_appDir;
-    MusicStorage m_musicStore;
     void prepareWorkingDir();
     void prepareAppDir();
     void songSelected(const QModelIndex &index);
     void songUpdated(const QModelIndex &index);
+    QListView *currentListView() const;
+    void copy();
+    void cut();
+    void paste();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 };
 #endif // MAINWINDOW_H
