@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "gamemanager.h"
 #include "musicstorage.h"
 #include "primarylistmodel.h"
 #include "secondarylistmodel.h"
@@ -47,12 +48,22 @@ private slots:
 
     void on_stop_clicked();
 
+    void on_insertCD1_clicked();
+
+    void on_insertCD2_clicked();
+
+    void on_insertCD3_clicked();
+
+    void on_insertRadio_clicked();
+
+
 private:
     Ui::MainWindow *ui;
     PrimaryListModel *m_primarymodel;
     SecondaryListModel *m_secondarymodel;
     QMediaPlayer *m_mediaPlayer;
     MusicStorage *m_musicStore;
+    GameManager *m_gameManager;
     QDir m_gameDir;
     QDir m_appDir;
     QUndoStack *m_undoStack;

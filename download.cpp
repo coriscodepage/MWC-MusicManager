@@ -76,10 +76,11 @@ void Downloader::handleDownloadFinished(const QString &output, const QDir &songP
     QString title = doc.object().value("title").toString();
     int duration = doc.object().value("duration").toInt();
     QString artist = doc.object().value("uploader").toString();
+    QString url = doc.object().value("webpage_url").toString();
     QString hashActual = hash;
     QDir checkPath = songPath;
     if (hash == "search") {
-        QString sanitizedUrl = doc.object().value("webpage_url").toString().remove("https://").remove("http://").remove("www.");
+        QString sanitizedUrl = url.remove("https://").remove("http://").remove("www.");
         QUrlQuery query(QUrl(sanitizedUrl).query());
         if(query.hasQueryItem("v")) {
             hashActual = QString("yt%1").arg(query.queryItemValue("v"));
@@ -89,6 +90,6 @@ void Downloader::handleDownloadFinished(const QString &output, const QDir &songP
     QDir storagePath = songPath;
     storagePath.cdUp();
     QDir entryPath = storagePath.relativeFilePath(hashActual);
-    auto song = std::make_shared<MusicObject>(title, duration, artist, storagePath, entryPath, hashActual, checkPath);
+    auto song = std::make_shared<MusicObject>(title, duration, artist, storagePath, entryPath, hashActual, checkPath, url);
     emit downloadFinished(song);
 }

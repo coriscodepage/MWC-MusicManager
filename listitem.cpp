@@ -48,7 +48,6 @@ QVector<MusicItem> &ListItem::getItems() {
     return m_items;
 }
 
-
 void ListItem::setItems(const QVector<MusicItem> &items) {
     m_items = items;
 }

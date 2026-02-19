@@ -40,7 +40,7 @@
            </layout>
           </item>
           <item>
-           <widget class="QListView" name="listView">
+           <widget class="TargetListView" name="listView">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
               <horstretch>2</horstretch>
@@ -108,6 +108,13 @@
           <widget class="QPushButton" name="insertCD2">
            <property name="text">
             <string>CD2</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="insertCD3">
+           <property name="text">
+            <string>CD3</string>
            </property>
           </widget>
          </item>
@@ -409,6 +416,13 @@
    </property>
   </action>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>TargetListView</class>
+   <extends>QListView</extends>
+   <header>targetlistview.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

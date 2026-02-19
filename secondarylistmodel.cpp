@@ -229,3 +229,9 @@ QString SecondaryListModel::getSongPath(int index) const {
     QString path = m_item->getItem(index)->songPath();
     return path;
 }
+
+const QVector<MusicItem> &SecondaryListModel::getSongs() const {
+    static const QVector<MusicItem> empty;
+    if (m_item == nullptr) return empty;
+    return m_item->getItems();
+}

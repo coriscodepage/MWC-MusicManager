@@ -22,6 +22,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_undoStack = new QUndoStack(this);
 
     prepareWorkingDir();
+    m_gameManager = new GameManager(m_gameDir);
     qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     prepareAppDir();
     qDebug() << QString("[MainWindow] Application path: %1").arg(m_appDir.absolutePath());
@@ -130,13 +131,13 @@ void MainWindow::on_deleteList_clicked() {
         ui->listItemView->setEnabled(false);
         ui->downloadControls->setEnabled(false);
     }
-    for(auto &i : m_primarymodel->getItems()) {
-        for (auto &j : i.getItems()) {
-            QString hash = j.getHash();
-            j.setSong(nullptr);
-            m_musicStore->checkedRemoveSong(hash);
-        }
+
+    for (auto &i : m_primarymodel->getItem(selection).getItems()) {
+        QString hash = i.getHash();
+        i.setSong(nullptr);
+        m_musicStore->checkedRemoveSong(hash);
     }
+
     m_primarymodel->removeItem(selection);
 }
 
@@ -458,3 +459,27 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 
 }
+
+void MainWindow::on_insertCD1_clicked()
+{
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD1");
+}
+
+
+void MainWindow::on_insertCD2_clicked()
+{
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD2");
+}
+
+void MainWindow::on_insertCD3_clicked()
+{
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD3");
+}
+
+void MainWindow::on_insertRadio_clicked()
+{
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "Radio");
+}
+
+
+

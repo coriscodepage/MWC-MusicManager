@@ -7,8 +7,8 @@ class MusicObject
 {
 public:
     MusicObject() = default;
-    MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath = QDir());
-    MusicObject(const QString &title, int duration, const QString &artist, const QDir &entryPath, const QString &hash, bool isValid, bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName);
+    MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath = QDir(), const QString &url = QString());
+    MusicObject(const QString &title, int duration, const QString &artist, const QDir &entryPath, const QString &hash, bool isValid, bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName, const QString &url);
     bool isValid() const;
     bool hasThumbnail() const;
     const QString &title() const;
@@ -36,6 +36,7 @@ private:
     QFileInfo m_songName;
     QFileInfo m_thumbnailName;
     QString m_hash;
+    QString m_url;
     bool m_valid;
     bool m_hasThumbnail;
     bool m_makedForDeletion;

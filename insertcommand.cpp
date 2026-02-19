@@ -1,3 +1,4 @@
 #include "insertcommand.h"
 
-InsertCommand::InsertCommand() {}
+InsertCommand::InsertCommand() {
+    }

@@ -1,7 +1,7 @@
 #include "musicobject.h"
 
-MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath): m_title(title), m_duration(duration),
-    m_artist(artist), m_storagePath(storagePath), m_entryPath(entryPath), m_hash(hash), m_hasThumbnail(true), m_makedForDeletion(false)
+MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath, const QString &url): m_title(title), m_duration(duration),
+    m_artist(artist), m_storagePath(storagePath), m_entryPath(entryPath), m_hash(hash), m_hasThumbnail(true), m_url(url), m_makedForDeletion(false)
 {
     QDir actualCheckPath = m_storagePath.absoluteFilePath(entryPath.path());
     if (checkPath != QDir())
@@ -30,8 +30,8 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
 }
 
 MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &entryPath, const QString &hash, bool isValid,
-    bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName) : m_title(title), m_duration(duration), m_artist(artist),
-    m_entryPath(entryPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailName(thumbnailName), m_songName(songName), m_makedForDeletion(false) {}
+    bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName, const QString &url) : m_title(title), m_duration(duration), m_artist(artist),
+    m_entryPath(entryPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailName(thumbnailName), m_songName(songName), m_url(url), m_makedForDeletion(false) {}
 
 void MusicObject::setStoragePath(const QDir &path) {
     m_storagePath = path;
@@ -106,6 +106,7 @@ QDataStream &operator<<(QDataStream &out, const MusicObject &item) {
     out << item.hasThumbnail();
     out << item.m_thumbnailName.fileName();
     out << item.m_songName.fileName();
+    out << item.m_url;
     return out;
 }
 
@@ -119,8 +120,9 @@ QDataStream &operator>>(QDataStream &in, MusicObject &item) {
     bool hasThumbnail;
     QString thumbnailName;
     QString songName;
+    QString url;
 
-    in >> title >> duration >> artist >> entryPath >> hash >> isValid >> hasThumbnail >> thumbnailName >> songName;
-    item = MusicObject(title, duration, artist, QDir(entryPath), hash, isValid, hasThumbnail, QFileInfo(thumbnailName), QFileInfo(songName));
+    in >> title >> duration >> artist >> entryPath >> hash >> isValid >> hasThumbnail >> thumbnailName >> songName >> url;
+    item = MusicObject(title, duration, artist, QDir(entryPath), hash, isValid, hasThumbnail, QFileInfo(thumbnailName), QFileInfo(songName), url);
     return in;
 }
