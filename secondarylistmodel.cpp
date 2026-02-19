@@ -1,10 +1,14 @@
 #include "secondarylistmodel.h"
+#include "movecommand.h"
+#include "movesecondarycommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
+#include <qpixmap.h>
 
-SecondaryListModel::SecondaryListModel(QObject *parent, MusicStorage *musicStore)
+SecondaryListModel::SecondaryListModel(QObject *parent, MusicStorage *musicStore, QUndoStack *undoStack)
     : QAbstractListModel{parent}
     , m_musicStore(musicStore)
+    , m_undoStack(undoStack)
 {}
 
 int SecondaryListModel::rowCount(const QModelIndex &parent) const {
@@ -131,7 +135,6 @@ bool SecondaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction acti
 
     QByteArray encoded = data->data("application/x-msc-song");
     QDataStream stream(&encoded, QIODevice::ReadOnly);
-    QItemSelection selection;
 
     while (!stream.atEnd()) {
         MusicItem item;
@@ -168,3 +171,61 @@ bool SecondaryListModel::canDropMimeData(const QMimeData *data, Qt::DropAction a
     return true;
 }
 
+bool SecondaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) {
+    if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
+        return false;
+
+    QVector<MusicItem> movingItems;
+    for (int i = 0; i < count; ++i)
+        movingItems.append(m_item->getItems().at(sourceRow));
+
+    MoveSecondaryCommand *cmd = new MoveSecondaryCommand(this, movingItems, sourceRow, count, destinationChild);
+    m_undoStack->push(cmd);
+    return true;
+}
+
+void SecondaryListModel::moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild) {
+    beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
+
+    for (int i = 0; i < count; ++i)
+        m_item->getItems().removeAt(sourceRow);
+
+    int insertPos = destinationChild;
+    if (destinationChild > sourceRow) insertPos -= count;
+
+    for (int i = 0; i < movingItems.size(); ++i)
+        m_item->getItems().insert(insertPos + i, movingItems[i]);
+    endMoveRows();
+}
+
+QString SecondaryListModel::getTitle(int index) const {
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return {};
+    QString title = m_item->getItem(index)->title();
+    return title;
+}
+
+QString SecondaryListModel::getHash(int index) const {
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return {};
+    QString hash = m_item->getItem(index)->getHash();
+    return hash;
+}
+
+void SecondaryListModel::setHash(const QString &hash, int index) {
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return;
+    m_item->getItem(index)->setHash(hash);
+}
+
+QPixmap SecondaryListModel::getPixmap(int index) const {
+    static const QPixmap empty(":/defaults/no-image.webp");
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return empty;
+    MusicItem *item = m_item->getItem(index);
+    if (!item->hasThumbnail()) return empty;
+    QString path = item->pixmapPath();
+    return QPixmap(path);
+}
+
+QString SecondaryListModel::getSongPath(int index) const {
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return QString();
+    QString path = m_item->getItem(index)->songPath();
+    return path;
+}

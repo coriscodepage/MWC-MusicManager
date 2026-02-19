@@ -3,7 +3,7 @@
 #include <QUrlQuery>
 #include <qeventloop.h>
 
-MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)) {}
+MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {}
 
 void MusicStorage::setMusicDir(const QDir &dir) {
     if (!dir.exists()) {
@@ -35,6 +35,7 @@ std::shared_ptr<MusicObject> MusicStorage::downloadMusic(QWidget *parent) {
 
     if (auto result = queryMusic(hashValue)) {
         qDebug() << "[MusicStorage] Already downloaded";
+        m_dirty = true;
         return result;
     }
     QDir songDir = m_musicDir;
@@ -47,21 +48,49 @@ std::shared_ptr<MusicObject> MusicStorage::downloadMusic(QWidget *parent) {
         songDir.cd(hashValue);
     } else {
         qWarning() << QString("[MusicStorage] Song directory already exists at: /%1").arg(m_musicDir.absolutePath() + hashValue);
-        return nullptr;
+        songDir.cd(hashValue);
+        songDir.removeRecursively();
+        bool res = m_musicDir.mkpath(hashValue);
+        if (res == 0) {
+            qWarning() << QString("[MusicStorage] Couldn't create song directory after removal at: /%1").arg(m_musicDir.absolutePath() + hashValue);
+            return nullptr;
+        }
     }
     QEventLoop loop; // INFO: Sync wait, non blocking.
     QObject::connect(this, &MusicStorage::handled, &loop, &QEventLoop::quit, Qt::SingleShotConnection);
-
-    m_downloader.downloadSong(url, songDir, hashValue, parent);
-    connect(&m_downloader, &Downloader::downloadFinished, this, [this, hashValue](std::shared_ptr<MusicObject> object) {
-        qDebug() << QString("[MusicStorage] Insering key: %1 with addres: %2").arg(hashValue).arg((size_t)object.get());
+    bool search = false;
+    if (url.isValid() && (url.scheme() == "http" || url.scheme() == "https") && !url.host().isEmpty())
+        m_downloader.downloadSong(url, songDir, hashValue, parent);
+    else {
+        qDebug() << "[MusicStorage] Malformed url. Assuming yt search";
+        m_downloader.downloadSong("ytsearch1:" + url.toDisplayString(), songDir, "search", parent);
+        search = true;
+    }
+    connect(&m_downloader, &Downloader::downloadFinished, this, [this, search](std::shared_ptr<MusicObject> object) {
+        qDebug() << QString("[MusicStorage] Insering key: %1 with addres: %2").arg(object->getHash()).arg((size_t)object.get());
         if (object != nullptr) {
-            if (object->isValid())
-                m_songs.insert(hashValue, object);
+            if (object->isValid()) {
+                m_songs.insert(object->getHash(), object);
+                if (search)
+                    m_tempHash = object->getHash();
+            }
         }
         emit handled();
     }, Qt::SingleShotConnection);
     loop.exec();
+    if (search) {
+        qDebug() << QString("[MusicStorage] Media from search. Updating dir from %1 to %2").arg(hashValue, m_tempHash);
+        songDir.cdUp();
+        bool res = songDir.rename(hashValue, m_tempHash);
+        if (!res) {
+            songDir.cd(hashValue);
+            songDir.removeRecursively();
+            qDebug() << "[MusicStorage] Renaming failed. Assuming that folder already exists.";
+        } else
+            songDir.cd(m_tempHash);
+        hashValue = m_tempHash;
+        m_tempHash.clear();
+    }
     if (auto result = queryMusic(hashValue))
         return result;
     songDir.removeRecursively();
@@ -69,7 +98,7 @@ std::shared_ptr<MusicObject> MusicStorage::downloadMusic(QWidget *parent) {
 }
 void MusicStorage::importMusic(const QDir &path) {
     for (auto &p : m_songs) {
-        qDebug() << QString("[MusicStorage] Songo with title of %1 has a use count of: %2").arg(p->title()).arg(p.use_count());
+        qDebug() << QString("[MusicStorage] Song with title of %1 has a use count of: %2").arg(p->title()).arg(p.use_count());
     }
 }
 
@@ -82,19 +111,34 @@ std::shared_ptr<MusicObject> MusicStorage::queryMusic(const QString &query) {
     return nullptr;
 }
 
-const QHash<QString, MusicObject> MusicStorage::getSongs() const {
+const QHash<QString, MusicObject> MusicStorage::getSongs() {
     QHash<QString, MusicObject> temp_map;
     for (auto it = m_songs.constBegin(); it != m_songs.constEnd(); it++) {
         auto key = it.key();
         auto value = *(it.value());
         qDebug() << QString("[MusicStorage] Preparing for save key %1, value %2").arg(key, it.value()->title());
-        temp_map.insert(key, value);
+        if (!value.isForDeletion())
+            temp_map.insert(key, value);
+        else {
+            qDebug() << QString("[MusicStorage] Skipping key %1, value %2 as marked for deletion").arg(key, it.value()->title());
+            it.value()->deleteFromDisk();
+            m_songs.erase(it);
+        }
     }
+    m_dirty = false;
     return temp_map;
 }
 
 void MusicStorage::setSongs(const QHash<QString, std::shared_ptr<MusicObject>> &songs) {
     m_songs = songs;
+}
+
+bool MusicStorage::isDirty() const {
+    return m_dirty;
+}
+
+const QDir &MusicStorage::getMusicDir() const {
+    return m_musicDir;
 }
 
 void MusicStorage::checkedRemoveSong(const QString& hash) {
@@ -104,7 +148,5 @@ void MusicStorage::checkedRemoveSong(const QString& hash) {
     qDebug() << QString("[MusicStorage] Delete for title %1 with ref_count of %2 requested").arg(it.value()->title()).arg(it.value().use_count());
     if (it.value().use_count() == 1) {
         it.value()->markForDeletion();
-        m_songs.erase(it);
     }
 }
-

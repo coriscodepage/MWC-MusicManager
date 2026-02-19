@@ -1,10 +1,12 @@
 #include "primarylistmodel.h"
+#include "moveprimarycommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
 
-PrimaryListModel::PrimaryListModel(QObject *parent, MusicStorage *musicStore)
+PrimaryListModel::PrimaryListModel(QObject *parent, MusicStorage *musicStore, QUndoStack *undoStack)
     : QAbstractListModel{parent}
     , m_musicStore(musicStore)
+    , m_undoStack(undoStack)
 {}
 
 int PrimaryListModel::rowCount(const QModelIndex &parent) const {
@@ -193,4 +195,35 @@ bool PrimaryListModel::insertRows(int row, int count, const QModelIndex &parent)
         m_items.insert(i, ListItem("New list"));
     endInsertRows();
     return true;
+}
+
+bool PrimaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) {
+    Q_UNUSED(sourceParent)
+    Q_UNUSED(destinationParent)
+
+    if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
+        return false;
+
+    beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
+    QVector<ListItem> movingItems;
+    for (int i = 0; i < count; ++i)
+        movingItems.append(m_items[sourceRow]);
+
+    MovePrimaryCommand *cmd = new MovePrimaryCommand(this, movingItems, sourceRow, count, destinationChild);
+    m_undoStack->push(cmd);
+    return true;
+}
+
+void PrimaryListModel::moveInternal(const QVector<ListItem> &movingItems, int sourceRow, int count, int destinationChild) {
+    beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
+
+    for (int i = 0; i < count; ++i)
+        m_items.removeAt(sourceRow);
+
+    int insertPos = destinationChild;
+    if (destinationChild > sourceRow) insertPos -= count;
+
+    for (int i = 0; i < movingItems.size(); ++i)
+        m_items.insert(insertPos + i, movingItems[i]);
+    endMoveRows();
 }

@@ -13,7 +13,7 @@ public:
     void setTitle(const QString &title);
     void addItem(const MusicItem &item, int index = -1);
     MusicItem *getItem(int index);
-    const MusicItem &getItem(int index) const;
+    const MusicItem *getItem(int index) const;
     const QVector<MusicItem> &getItems() const;
     QVector<MusicItem> &getItems();
     void setItems(const QVector<MusicItem> &items);

@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
+#include "cutcommand.h"
+#include "pastecommand.h"
 #include "primarylistmodel.h"
 #include <QSettings>
 #include <QFileDialog>
@@ -17,12 +19,14 @@ MainWindow::MainWindow(QWidget *parent)
     QAudioOutput* audioOutput = new QAudioOutput(this);
     audioOutput->setVolume(50);
     m_mediaPlayer->setAudioOutput(audioOutput);
+    m_undoStack = new QUndoStack(this);
+
     prepareWorkingDir();
     qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     prepareAppDir();
     qDebug() << QString("[MainWindow] Application path: %1").arg(m_appDir.absolutePath());
-    m_primarymodel = new PrimaryListModel(this, m_musicStore);
-    m_secondarymodel = new SecondaryListModel(this, m_musicStore);
+    m_primarymodel = new PrimaryListModel(this, m_musicStore, m_undoStack);
+    m_secondarymodel = new SecondaryListModel(this, m_musicStore, m_undoStack);
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
 
@@ -39,6 +43,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copy);
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
+
+    // connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
+    //     setWindowModified(!clean);
+    // });
+    QAction *action_undo = m_undoStack->createUndoAction(this, "Undo");
+    QAction *action_redo = m_undoStack->createRedoAction(this, "Redo");
+    action_undo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
+    action_undo->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::EditUndo));
+    action_redo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Y));
+    action_redo->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::EditRedo));
+    QAction *firstEditAction = ui->menuEdit->actions().constFirst();
+    ui->menuEdit->insertAction(firstEditAction, action_undo);
+    ui->menuEdit->insertAction(firstEditAction, action_redo);
 
     ui->listItemView->setDragEnabled(true);
     ui->listItemView->setAcceptDrops(true);
@@ -303,19 +320,19 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
 void MainWindow::songSelected(const QModelIndex &index) {
     ui->downloadControls->setEnabled(true);
-    auto listItem = m_secondarymodel->getItem();
-    auto pixmap = listItem->getItem(index.row())->pixmap();
+    auto pixmap = m_secondarymodel->getPixmap(index.row());
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText(listItem->getItem(index.row())->title());
+    ui->songLabel->setText(m_secondarymodel->getTitle(index.row()));
 }
 
 void MainWindow::songUpdated(const QModelIndex &index) {
     setWindowModified(true);
-    auto pixmap = m_secondarymodel->getItem()->getItem(index.row())->pixmap();
+    auto pixmap = m_secondarymodel->getPixmap(index.row());
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText(m_secondarymodel->getItem()->getItem(index.row())->title());
+    QString title = m_secondarymodel->getTitle(index.row());
+    ui->songLabel->setText(title);
 }
 
 void MainWindow::on_play_clicked() {
@@ -323,11 +340,8 @@ void MainWindow::on_play_clicked() {
     auto selections = ui->listItemView->selectionModel()->selection().indexes();
     if (selections.empty()) return;
     auto selection = selections.first();
-    auto listItem = m_secondarymodel->getItem();
-    auto musicPath = listItem->getItem(selection.row())->songPath();
-    if (!musicPath.isFile()) return;
-    if (!musicPath.exists()) return;
-    m_mediaPlayer->setSource(musicPath.absoluteFilePath());
+    auto musicPath = m_secondarymodel->getSongPath(selection.row());
+    m_mediaPlayer->setSource(musicPath);
     m_mediaPlayer->play();
 }
 
@@ -346,11 +360,13 @@ void MainWindow::saveAppData() {
     QDataStream out(&file);
     auto primaryItems = m_primarymodel->getItems();
     auto songs = m_musicStore->getSongs();
+    m_undoStack->clear();
     out << primaryItems;
     out << songs;
     setWindowModified(false);
-    qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.length()).arg(songs.keys().length());
+    qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
 }
+
 void MainWindow::loadAppData() {
     qDebug() << "[MainWindow] Load start";
     QFile file(m_appDir.filePath("data.msc"));
@@ -368,6 +384,7 @@ void MainWindow::loadAppData() {
     for (auto it = songsOwned.constBegin(); it != songsOwned.constEnd(); it++) {
         auto key = it.key();
         auto value = it.value();
+        value.setStoragePath(m_musicStore->getMusicDir());
         qDebug() << QString("[MainWindow] Loading song key: %1, value: %2").arg(key, value.title());
         songsShared.insert(key, std::make_shared<MusicObject>(value));
     }
@@ -414,13 +431,9 @@ void MainWindow::paste() {
     if (!view)
         return;
 
-    auto model = view->model();
     const QMimeData *data = QApplication::clipboard()->mimeData();
-
-    model->dropMimeData(data, Qt::CopyAction, -1, 0, QModelIndex());
-
-    view->setCurrentIndex(model->index(model->rowCount() - 1, 0));
-
+    PasteCommand *cmd = new PasteCommand(view, data);
+    m_undoStack->push(cmd);
 
 }
 
@@ -429,18 +442,8 @@ void MainWindow::cut() {
     if (!view)
         return;
 
-    auto model = view->model();
-    auto indexes = view->selectionModel()->selectedIndexes();
-
-    if (indexes.isEmpty())
-        return;
-
-    QMimeData *data = model->mimeData(indexes);
-    QApplication::clipboard()->setMimeData(data);
-
-    int firstRow = indexes.first().row();
-    int rowCount = indexes.count();
-    model->removeRows(firstRow, rowCount);
+    CutCommand *cmd = new CutCommand(view);
+    m_undoStack->push(cmd);
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

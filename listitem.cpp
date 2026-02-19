@@ -26,9 +26,9 @@ MusicItem *ListItem::getItem(int index) {
     if (index < 0 || index >= m_items.size()) return nullptr;
     return &m_items[index];
 }
-const MusicItem &ListItem::getItem(int index) const {
-    if (index < 0 || index >= m_items.size()) return m_items.last();
-    return m_items[index];
+const MusicItem *ListItem::getItem(int index) const {
+    if (index < 0 || index >= m_items.size()) return nullptr;
+    return &m_items[index];
 }
 void ListItem::removeItem(int index) {
     if (index < 0 || index >= m_items.size()) return;

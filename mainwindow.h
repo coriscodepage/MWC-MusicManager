@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QMediaPlayer>
 #include <qlistview.h>
+#include <qundostack.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -54,6 +55,7 @@ private:
     MusicStorage *m_musicStore;
     QDir m_gameDir;
     QDir m_appDir;
+    QUndoStack *m_undoStack;
     void prepareWorkingDir();
     void prepareAppDir();
     void songSelected(const QModelIndex &index);

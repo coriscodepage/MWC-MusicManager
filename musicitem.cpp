@@ -1,7 +1,7 @@
 #include "musicitem.h"
 #include <qpixmap.h>
 
-MusicItem::MusicItem(const QString &title, std::shared_ptr<MusicObject> song): m_title(title), m_song(song) {}
+MusicItem::MusicItem(const QString &title, std::shared_ptr<MusicObject> song): m_title(title), m_song(song), m_hash(QString()) {}
 
 const QString &MusicItem::title() const {
     if (m_title.isEmpty()) {
@@ -9,16 +9,6 @@ const QString &MusicItem::title() const {
             return m_song->title();
     }
     return m_title;
-}
-
-QPixmap MusicItem::pixmap() const {
-    const QString def = ":/defaults/no-image.webp";
-    if(m_song == nullptr) return QPixmap(def);
-    if (!m_song->hasThumbnail()) return QPixmap(def);
-    QFileInfo path = m_song->thumbnailPath();
-    if (!path.isFile() || !path.exists()) return QPixmap(def);
-    QPixmap pixmap(path.absoluteFilePath());
-    return pixmap;
 }
 
 void MusicItem::setTitle(const QString &title) {
@@ -34,8 +24,8 @@ void MusicItem::setSong(std::shared_ptr<MusicObject> song) {
     m_title = "";
 }
 
-QFileInfo MusicItem::songPath() const {
-    if(m_song == nullptr) return QFileInfo();
+QString MusicItem::songPath() const {
+    if(m_song == nullptr) return QString();
     return m_song->songPath();
 }
 
@@ -43,11 +33,21 @@ const QString &MusicItem::titleInternal() const {
     return m_title;
 }
 
+QString MusicItem::pixmapPath() const {
+    if(m_song == nullptr) return QString();
+    return m_song->thumbnailPath();
+}
+
 const QString &MusicItem::getHash() const {
     return m_hash;
 }
 void MusicItem::setHash(const QString &hash) {
     m_hash = hash;
+}
+
+bool MusicItem::hasThumbnail() {
+    if(m_song == nullptr) return false;
+    return m_song->hasThumbnail();
 }
 
 QDataStream &operator<<(QDataStream &out, const MusicItem &item) {

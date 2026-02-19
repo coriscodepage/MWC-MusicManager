@@ -35,6 +35,15 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         musicobject.h musicobject.cpp
         resources.qrc
 
+        cutcommand.h cutcommand.cpp
+        pastecommand.h pastecommand.cpp
+
+
+        insertcommand.h insertcommand.cpp
+        gamemanager.h gamemanager.cpp
+        moveprimarycommand.h moveprimarycommand.cpp
+        movesecondarycommand.h movesecondarycommand.cpp
+
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET MusicManager APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

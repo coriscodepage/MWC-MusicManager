@@ -15,14 +15,18 @@ public:
     std::shared_ptr<MusicObject> downloadMusic(QWidget *parent);
     std::shared_ptr<MusicObject> queryMusic(const QString &query);
     void importMusic(const QDir &path);
-    const QHash<QString, MusicObject> getSongs() const;
+    const QHash<QString, MusicObject> getSongs();
     void setSongs(const QHash<QString, std::shared_ptr<MusicObject>> &songs);
     void checkedRemoveSong(const QString& hash);
+    const QDir &getMusicDir() const;
+    bool isDirty() const;
 
 private:
     QDir m_musicDir;
     Downloader m_downloader;
     QHash<QString, std::shared_ptr<MusicObject>> m_songs;
+    QString m_tempHash;
+    bool m_dirty;
 
 signals:
     void handled();

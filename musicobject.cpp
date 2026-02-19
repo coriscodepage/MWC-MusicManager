@@ -1,34 +1,41 @@
 #include "musicobject.h"
 
-MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &fullPath, const QString &hash): m_title(title), m_duration(duration),
-    m_artist(artist), m_fullPath(fullPath), m_hash(hash), m_hasThumbnail(true), m_makedForDeletion(false)
+MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath): m_title(title), m_duration(duration),
+    m_artist(artist), m_storagePath(storagePath), m_entryPath(entryPath), m_hash(hash), m_hasThumbnail(true), m_makedForDeletion(false)
 {
-    QStringList d = m_fullPath.entryList();
+    QDir actualCheckPath = m_storagePath.absoluteFilePath(entryPath.path());
+    if (checkPath != QDir())
+        actualCheckPath = checkPath;
+    QStringList d = checkPath.entryList();
     QStringList oggFiles = d.filter(".ogg", Qt::CaseInsensitive);
     QStringList imageFiles = d.filter(".webp", Qt::CaseInsensitive) + d.filter(".jpg", Qt::CaseInsensitive) + d.filter(".png", Qt::CaseInsensitive); // FIXME: JANK. USE MIME TYPE.
 
     if (!oggFiles.isEmpty())
-        m_songPath = QFileInfo(m_fullPath.filePath(oggFiles.constFirst()));
+        m_songName = QFileInfo(oggFiles.constFirst());
     else {
-        qWarning() << QString("[MusicObject] Can't find song in directory: %1").arg(m_fullPath.path());
+        qWarning() << QString("[MusicObject] Can't find song in directory: %1").arg(actualCheckPath.path());
         m_valid = false;
         return;
     }
     if (!imageFiles.isEmpty())
-        m_thumbnailPath = QFileInfo(m_fullPath.filePath(imageFiles.constFirst()));
+        m_thumbnailName = QFileInfo(imageFiles.constFirst());
     else {
-        qWarning() << QString("[MusicObject] Can't find thumbnail in directory: %1").arg(m_fullPath.path()); // INFO: The lack of a thumbnail does not cause the app to crash and burn, no early return.
+        qWarning() << QString("[MusicObject] Can't find thumbnail in directory: %1").arg(actualCheckPath.path()); // INFO: The lack of a thumbnail does not cause the app to crash and burn, no early return.
         m_hasThumbnail = false;
+        m_thumbnailName = QFileInfo();
     }
     m_valid = true;
-    qDebug() << QString("[MusicObject] Created song with title: %1, duration %2:%3, artist: %4, path: %5").arg(title).arg(duration/60).arg(duration%60).arg(artist, fullPath.path());
-    qDebug() << QString("[MusicObject] Song path: %1, Thumbnail path %2").arg(m_songPath.filePath(), m_thumbnailPath.filePath());
+    qDebug() << QString("[MusicObject] Created song with title: %1, duration %2:%3, artist: %4, path: %5").arg(title).arg(duration/60).arg(duration%60).arg(artist, actualCheckPath.path());
+    qDebug() << QString("[MusicObject] Song name: %1, Thumbnail name %2").arg(m_songName.fileName(), m_thumbnailName.fileName());
 }
 
-MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &fullPath, const QString &hash, bool isValid,
-    bool hasThumbnail, const QFileInfo &thumbnailPath, const QFileInfo &songPath) : m_title(title), m_duration(duration), m_artist(artist),
-    m_fullPath(fullPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailPath(thumbnailPath), m_songPath(songPath), m_makedForDeletion(false) {}
+MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &entryPath, const QString &hash, bool isValid,
+    bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName) : m_title(title), m_duration(duration), m_artist(artist),
+    m_entryPath(entryPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailName(thumbnailName), m_songName(songName), m_makedForDeletion(false) {}
 
+void MusicObject::setStoragePath(const QDir &path) {
+    m_storagePath = path;
+}
 
 bool MusicObject::isValid() const {
     return m_valid;
@@ -49,25 +56,32 @@ const QString &MusicObject::artist() const {
     return m_artist;
 }
 
-QFileInfo MusicObject::thumbnailPath() const {
-    if (m_hasThumbnail) return m_thumbnailPath;
-    return QFileInfo();
+QString MusicObject::thumbnailPath() const {
+    QDir retPath = m_storagePath;
+    retPath.cd(m_entryPath.path());
+    return retPath.absoluteFilePath(m_thumbnailName.fileName());
 }
 
-const QFileInfo &MusicObject::songPath() const {
-    return m_songPath;
+QString MusicObject::songPath() const {
+    QDir retPath = m_storagePath;
+    retPath.cd(m_entryPath.path());
+    return retPath.absoluteFilePath(m_songName.fileName());
 }
 
 const QString &MusicObject::getHash() const {
     return m_hash;
 }
 
-const QDir &MusicObject::fullPath() const {
-    return m_fullPath;
+const QDir &MusicObject::entryPath() const {
+    return m_entryPath;
 }
 
 void MusicObject::deleteFromDisk() {
-    qDebug() << "[MusicObject] Delete not implemented";
+    qDebug() << QString("[MusicObject] Deleting: %1").arg(m_title);
+    QDir deletePath = m_storagePath;
+    deletePath.cd(m_entryPath.path());
+    if (!deletePath.removeRecursively())
+        qWarning() << QString("[MusicObject] Deleting: %1 failed").arg(m_title);
 }
 
 void MusicObject::markForDeletion() {
@@ -86,12 +100,12 @@ QDataStream &operator<<(QDataStream &out, const MusicObject &item) {
     out << item.title();
     out << item.duration();
     out << item.artist();
-    out << item.fullPath().absolutePath();
+    out << item.entryPath().path();
     out << item.getHash();
     out << item.isValid();
     out << item.hasThumbnail();
-    out << item.thumbnailPath().absoluteFilePath();
-    out << item.songPath().absoluteFilePath();
+    out << item.m_thumbnailName.fileName();
+    out << item.m_songName.fileName();
     return out;
 }
 
@@ -99,14 +113,14 @@ QDataStream &operator>>(QDataStream &in, MusicObject &item) {
     QString title;
     int duration;
     QString artist;
-    QString fullPath;
+    QString entryPath;
     QString hash;
     bool isValid;
     bool hasThumbnail;
-    QString thumbnailPath;
-    QString songPath;
+    QString thumbnailName;
+    QString songName;
 
-    in >> title >> duration >> artist >> fullPath >> hash >> isValid >> hasThumbnail >> thumbnailPath >> songPath;
-    item = MusicObject(title, duration, artist, QDir(fullPath), hash, isValid, hasThumbnail, QFileInfo(thumbnailPath), QFileInfo(songPath));
+    in >> title >> duration >> artist >> entryPath >> hash >> isValid >> hasThumbnail >> thumbnailName >> songName;
+    item = MusicObject(title, duration, artist, QDir(entryPath), hash, isValid, hasThumbnail, QFileInfo(thumbnailName), QFileInfo(songName));
     return in;
 }
