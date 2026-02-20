@@ -75,8 +75,10 @@ private:
     void copy();
     void cut();
     void paste();
+    void updateItemCountLabel();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 };
 #endif // MAINWINDOW_H

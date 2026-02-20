@@ -7,15 +7,16 @@
 class PasteCommand : public QUndoCommand
 {
 public:
-    PasteCommand(QListView *view, const QMimeData *data, int m_row = -1);
+    PasteCommand(QListView *view, QByteArray &data, const QString &format, int m_row = -1);
     void undo() override;
     void redo() override;
 private:
     QListView *m_view;
-    const QMimeData *m_data;
-    const QMimeData *m_previousData;
+    QByteArray m_data;
+    QByteArray m_oldData;
     int m_row;
-
+    int m_count;
+    QString m_format;
 };
 
 #endif // PASTECOMMAND_H

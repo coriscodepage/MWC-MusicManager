@@ -121,8 +121,7 @@ QMimeData *SecondaryListModel::mimeData(const QModelIndexList &indexes) const {
         if (!index.isValid())
             continue;
 
-        for (auto &index : indexes)
-            stream << *(m_item->getItem(index.row()));
+        stream << QVariant::fromValue(*(m_item->getItem(index.row())));
     }
     m_draggedIndexes = indexes;
     mime->setData("application/x-msc-song", encoded);
@@ -137,8 +136,9 @@ bool SecondaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction acti
     QDataStream stream(&encoded, QIODevice::ReadOnly);
 
     while (!stream.atEnd()) {
-        MusicItem item;
-        stream >> item;
+        QVariant v;
+        stream >> v;
+        MusicItem item = v.value<MusicItem>();
         QString hash = item.getHash();
         auto songPtr = m_musicStore->queryMusic(hash);
         item.setSong(songPtr);

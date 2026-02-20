@@ -17,7 +17,7 @@ public:
     bool setData(const QModelIndex &index, const QVariant &value, int role) override;
     int columnCount(const QModelIndex &parent = QModelIndex()) const override;
 
-    void addItem(const ListItem &item);
+    void addItem(const ListItem &item, int index = -1);
     void removeItem(const QModelIndex &index);
     ListItem &getItem(const QModelIndex &index);
 

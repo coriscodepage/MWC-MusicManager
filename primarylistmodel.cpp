@@ -62,10 +62,16 @@ ListItem &PrimaryListModel::getItem(const QModelIndex &index) {
     return m_items[index.row()];
 }
 
-void PrimaryListModel::addItem(const ListItem &item) {
-    beginInsertRows(QModelIndex(), m_items.size(), m_items.size());
-    m_items.append(item);
-    endInsertRows();
+void PrimaryListModel::addItem(const ListItem &item, int index) {
+    if (index == -1) {
+        beginInsertRows(QModelIndex(), m_items.size(), m_items.size());
+        m_items.append(item);
+        endInsertRows();
+    } else {
+        beginInsertRows(QModelIndex(), index, index);
+        m_items.insert(index, item);
+        endInsertRows();
+    }
 }
 
 void PrimaryListModel::removeItem(const QModelIndex &index) {
@@ -114,13 +120,10 @@ QMimeData* PrimaryListModel::mimeData(const QModelIndexList &indexes) const {
 
     QByteArray encoded;
     QDataStream stream(&encoded, QIODevice::WriteOnly);
-
     for (const QModelIndex &index : indexes) {
         if (!index.isValid())
             continue;
-
-        for (auto &index : indexes)
-            stream << m_items[index.row()];
+        stream << QVariant::fromValue(m_items[index.row()]);
     }
     m_draggedIndexes = indexes;
     mime->setData("application/x-msc-list", encoded);
@@ -154,17 +157,17 @@ bool PrimaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction action
     QByteArray encoded = data->data("application/x-msc-list");
     QDataStream stream(&encoded, QIODevice::ReadOnly);
     QItemSelection selection;
-    int i = 0;
+
     while (!stream.atEnd()) {
-        ListItem item;
-        stream >> item;
+        QVariant v;
+        stream >> v;
+        ListItem item = v.value<ListItem>();
         for (auto &s : item.getItems()) {
             QString hash = s.getHash();
             auto songPtr = m_musicStore->queryMusic(hash);
             s.setSong(songPtr);
         }
-        insertAt(item, row + i);
-        i++;
+        insertAt(item, row );
     }
     return true;
 }

@@ -9,19 +9,14 @@ void TargetListView::dragEnterEvent(QDragEnterEvent *event)
 
 void TargetListView::dragMoveEvent(QDragMoveEvent *event)
 {
-    QModelIndex hovered = indexAt(event->position().toPoint());
-    if (hovered.isValid()) {
-        selectionModel()->setCurrentIndex(
-            hovered,
-            QItemSelectionModel::ClearAndSelect
-            );
-    }
-
     if (event->source() == this) {
+        event->setDropAction(Qt::MoveAction);
         QListView::dragMoveEvent(event);
     } else {
-        event->setDropAction(Qt::IgnoreAction);
-        event->accept();
+        QModelIndex hovered = indexAt(event->position().toPoint());
+        if (hovered.isValid())
+            selectionModel()->setCurrentIndex(hovered, QItemSelectionModel::ClearAndSelect);
+        event->ignore();
     }
 }
 

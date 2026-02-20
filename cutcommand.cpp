@@ -3,22 +3,23 @@
 #include <qclipboard.h>
 #include <qmimedata.h>
 
-CutCommand::CutCommand(QListView *view): m_view(view) {
-    auto model = m_view->model();
+CutCommand::CutCommand(QListView *view, QByteArray &data, const QString &format): m_view(view), m_format(format) {
     m_indexes = m_view->selectionModel()->selectedIndexes();
     if (m_indexes.isEmpty())
         return;
-    m_mimeData = model->mimeData(m_indexes);
+    m_data = data;
 }
 
 void CutCommand::redo() {
-    if (m_indexes.isEmpty() || m_mimeData == nullptr)
+    if (m_indexes.isEmpty() || m_data.isEmpty())
         return;
 
     auto model = m_view->model();
 
+    QMimeData *mime = new QMimeData();
+    mime->setData(m_format, m_data);
     QClipboard *clipboard = QGuiApplication::clipboard();
-    clipboard->setMimeData(m_mimeData);
+    clipboard->setMimeData(mime);
 
     int firstRow = m_indexes.first().row();
     int rowCount = m_indexes.count();
@@ -26,12 +27,13 @@ void CutCommand::redo() {
 }
 
 void CutCommand::undo() {
-    if (m_indexes.isEmpty() || m_mimeData == nullptr)
+    if (m_indexes.isEmpty() || m_data.isEmpty())
         return;
+
+    QMimeData mime;
+    mime.setData(m_format, m_data);
 
     auto model = m_view->model();
     int firstRow = m_indexes.first().row();
-    int rowCount = m_indexes.count();
-    model->insertRows(firstRow, rowCount);
-    model->dropMimeData(m_mimeData, Qt::CopyAction, firstRow, 0, QModelIndex());
+    model->dropMimeData(&mime, Qt::CopyAction, firstRow, 0, QModelIndex());
 }

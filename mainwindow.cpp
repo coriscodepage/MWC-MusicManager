@@ -1,13 +1,17 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "cutcommand.h"
+#include "insertprimarycommand.h"
+#include "insertsecondarycommand.h"
 #include "pastecommand.h"
 #include "primarylistmodel.h"
+#include "removecommand.h"
 #include <QSettings>
 #include <QFileDialog>
 #include <QAudioOutput>
 #include <QCloseEvent>
 #include <QClipboard>
+#include <qmimedata.h>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -35,6 +39,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->listItemView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handleSecondaryListSelectionChanged);
     connect(m_secondarymodel, &SecondaryListModel::dataChanged, this, &MainWindow::handleSecondaryListSelectionChanged);
 
+    connect(m_secondarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
+        ui->downloadControls->setEnabled(m_secondarymodel->rowCount() > 0);
+        updateItemCountLabel();
+    });
+    connect(m_primarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
+        m_secondarymodel->setSource(nullptr);
+        updateItemCountLabel();
+    });
+
     ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listView, &QListView::customContextMenuRequested, this, &MainWindow::showListContextMenu);
     ui->listItemView->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -45,9 +58,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
 
-    // connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
-    //     setWindowModified(!clean);
-    // });
+    connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
+        setWindowModified(!clean);
+    });
     QAction *action_undo = m_undoStack->createUndoAction(this, "Undo");
     QAction *action_redo = m_undoStack->createRedoAction(this, "Redo");
     action_undo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
@@ -79,66 +92,42 @@ MainWindow::~MainWindow()
 
 
 void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
-    Q_UNUSED(previous);
     if (!index.isValid()) return;
-    qDebug() << QString("Primary: {%1}").arg(index.row());
+    qDebug() << QString("[MainWindow] Primary: {%1}").arg(index.row());
     ListItem &data = m_primarymodel->getItem(index);
     m_secondarymodel->setSource(&data);
     ui->listItemView->setEnabled(true);
+    updateItemCountLabel();
 }
 
 void MainWindow::handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
     Q_UNUSED(previous);
     if (!index.isValid()) return;
-    qDebug() << QString("Secondary: {%1}").arg(index.row());
+    qDebug() << QString("[MainWindow] Secondary: {%1}").arg(index.row());
+    updateItemCountLabel();
     songSelected(index);
 }
 
 void MainWindow::on_addCD_clicked() {
-    setWindowModified(true);
-    ui->listView->setFocus();
-    m_primarymodel->addItem(ListItem("New list", true));
-    QModelIndex index = m_primarymodel->index(m_primarymodel->rowCount()-1);
-    ui->listView->edit(index);
-    ui->listView->setCurrentIndex(index);
-    handlePrimaryListSelectionChanged(index, index);
+    InsertPrimaryCommand *cmd = new InsertPrimaryCommand(ui->listView, m_primarymodel, "New list", true, m_primarymodel->rowCount());
+    m_undoStack->push(cmd);
 }
 
 
 void MainWindow::on_newItem_clicked() {
-    setWindowModified(true);
-    m_secondarymodel->insertRow(m_secondarymodel->rowCount());
-    QModelIndex index = m_secondarymodel->index(m_secondarymodel->rowCount()-1);
-    ui->listItemView->setCurrentIndex(index);
-    ui->listItemView->setFocus();
+    InsertSecondaryCommand *cmd = new InsertSecondaryCommand(ui->listItemView, m_secondarymodel->rowCount());
+    m_undoStack->push(cmd);
 }
 
 
 void MainWindow::on_deleteList_clicked() {
-    //setWindowModified(true);
-    auto selections = ui->listView->selectionModel()->selection().indexes();
-    if (selections.empty()) return;
-    QModelIndex selection = selections.constFirst();
-    if (selection.row() > 0) {
-        handlePrimaryListSelectionChanged(selection, selection);
-        ui->listItemView->setFocus();
-    } else if (m_primarymodel->rowCount() > 1) {
-        QModelIndex index = m_primarymodel->index(m_primarymodel->rowCount()-1);
-        handlePrimaryListSelectionChanged(index, index);
-        ui->listItemView->setFocus();
-    } else {
-        m_secondarymodel->setSource(nullptr);
-        ui->listItemView->setEnabled(false);
-        ui->downloadControls->setEnabled(false);
-    }
+    QUndoCommand *macro = new QUndoCommand("Remove List");
+    auto indexes = ui->listView->selectionModel()->selectedIndexes();
 
-    for (auto &i : m_primarymodel->getItem(selection).getItems()) {
-        QString hash = i.getHash();
-        i.setSong(nullptr);
-        m_musicStore->checkedRemoveSong(hash);
+    for (const QModelIndex &index : std::as_const(indexes)) {
+        new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
     }
-
-    m_primarymodel->removeItem(selection);
+    m_undoStack->push(macro);
 }
 
 
@@ -161,11 +150,8 @@ void MainWindow::on_downloadItem_clicked() {
 
 
 void MainWindow::on_addRadio_clicked() {
-    ui->listView->setFocus();
-    m_primarymodel->addItem(ListItem("New list", false));
-    QModelIndex index = m_primarymodel->index(m_primarymodel->rowCount()-1);
-    ui->listView->edit(index);
-    handlePrimaryListSelectionChanged(index, index);
+    InsertPrimaryCommand *cmd = new InsertPrimaryCommand(ui->listView, m_primarymodel, "New list", false, m_primarymodel->rowCount());
+    m_undoStack->push(cmd);
 }
 
 void MainWindow::prepareWorkingDir() {
@@ -253,23 +239,28 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     if (res == &action1)
         ui->listView->edit(index);
     else if (res == &action2) {
-        m_secondarymodel->setSource(nullptr);
-        m_primarymodel->removeItem(index);
+        QUndoCommand *macro = new QUndoCommand("Remove Lists");
+        for (const QModelIndex &index : std::as_const(list))
+            new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
+        m_undoStack->push(macro);
     } else if (res == &action3) {
         QMimeData *data = m_primarymodel->mimeData(list);
         QApplication::clipboard()->setMimeData(data);
     } else if (res == &action4) {
-        QMimeData *data = m_primarymodel->mimeData(list);
-        QApplication::clipboard()->setMimeData(data);
+        QMimeData *data = m_secondarymodel->mimeData(list);
+        QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
+        CutCommand *cmd = new CutCommand(ui->listView, binary, m_secondarymodel->mimeTypes().constFirst());
+        m_undoStack->push(cmd);
         int firstRow = list.first().row();
         int rowCount = list.count();
-        m_primarymodel->removeRows(firstRow, rowCount);
-        m_secondarymodel->setSource(nullptr);
+        m_secondarymodel->removeRows(firstRow, rowCount);
     } else if (res == &action5) {
-        m_primarymodel->removeRow(index.row());
+        int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
-        m_primarymodel->dropMimeData(data, Qt::CopyAction, index.row(), 0, QModelIndex());
-        ui->listView->setCurrentIndex(index);
+        QString format = data->formats().constFirst();
+        QByteArray binary = data->data(format);
+        PasteCommand *cmd = new PasteCommand(ui->listView, binary, format, firstRow);
+        m_undoStack->push(cmd);
     }
 }
 
@@ -299,23 +290,28 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     if (res == &action1)
         ui->listItemView->edit(index);
     else if (res == &action2) {
-        m_secondarymodel->removeRow(index.row());
-        if (m_secondarymodel->rowCount() == 0) ui->downloadControls->setEnabled(false);
+        QUndoCommand *macro = new QUndoCommand("Remove Songs");
+        for (const QModelIndex &index : std::as_const(list))
+            new RemoveCommand(ui->listItemView, index.row(), nullptr, macro);
+        m_undoStack->push(macro);
     } else if (res == &action3) {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QApplication::clipboard()->setMimeData(data);
     } else if (res == &action4) {
         QMimeData *data = m_secondarymodel->mimeData(list);
-        QApplication::clipboard()->setMimeData(data);
-
+        QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
+        CutCommand *cmd = new CutCommand(ui->listItemView, binary, m_secondarymodel->mimeTypes().constFirst());
+        m_undoStack->push(cmd);
         int firstRow = list.first().row();
         int rowCount = list.count();
         m_secondarymodel->removeRows(firstRow, rowCount);
     } else if (res == &action5) {
-        m_secondarymodel->removeRow(index.row());
+        int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
-        m_secondarymodel->dropMimeData(data, Qt::CopyAction, index.row(), 0, QModelIndex());
-        ui->listItemView->setCurrentIndex(index);
+        QString format = data->formats().constFirst();
+        QByteArray binary = data->data(format);
+        PasteCommand *cmd = new PasteCommand(ui->listItemView, binary, format, firstRow);
+        m_undoStack->push(cmd);
     }
 }
 
@@ -431,9 +427,14 @@ void MainWindow::paste() {
     auto view = currentListView();
     if (!view)
         return;
-
+    // auto selection = view->selectionModel()->selectedIndexes();
+    // int row = -1;
+    // if (!selection.isEmpty())
+    //     row = selection.constFirst().row();
     const QMimeData *data = QApplication::clipboard()->mimeData();
-    PasteCommand *cmd = new PasteCommand(view, data);
+    QString format = data->formats().constFirst();
+    QByteArray binary = data->data(format);
+    PasteCommand *cmd = new PasteCommand(view, binary, format);
     m_undoStack->push(cmd);
 
 }
@@ -442,8 +443,13 @@ void MainWindow::cut() {
     auto view = currentListView();
     if (!view)
         return;
-
-    CutCommand *cmd = new CutCommand(view);
+    auto model = view->model();
+    auto selection = view->selectionModel()->selectedIndexes();
+    QMimeData *mime = model->mimeData(selection);
+    QString format = model->mimeTypes().constFirst();
+    QByteArray data = mime->data(format);
+    delete mime;
+    CutCommand *cmd = new CutCommand(view, data, format);
     m_undoStack->push(cmd);
 }
 
@@ -481,5 +487,36 @@ void MainWindow::on_insertRadio_clicked()
     m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "Radio");
 }
 
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (event->key() == Qt::Key_Delete) {
+        if (ui->listView->hasFocus()) {
+            auto list = ui->listView->selectionModel()->selectedIndexes();
+            QUndoCommand *macro = new QUndoCommand("Remove Lists");
+            for (const QModelIndex &index : std::as_const(list))
+                new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
+            m_undoStack->push(macro);
+        } else if (ui->listItemView->hasFocus()) {
+            auto list = ui->listItemView->selectionModel()->selectedIndexes();
+            QUndoCommand *macro = new QUndoCommand("Remove Songs");
+            for (const QModelIndex &index : std::as_const(list))
+                new RemoveCommand(ui->listItemView, index.row(), nullptr, macro);
+            m_undoStack->push(macro);
+        }
 
+    }
+    QMainWindow::keyPressEvent(event);
+}
+
+void MainWindow::updateItemCountLabel() {
+    auto data = m_secondarymodel->getItem();
+    if (data == nullptr) return;
+    int count = data->itemCount();
+    int maximum = data->type() ? 15 : 199; //FIXME: Magic numbers
+    ui->songAmountlabel->setText(QString("%1/%2").arg(count).arg(maximum));
+    if (count > maximum)
+        ui->songAmountlabel->setStyleSheet("color: red;");
+    else
+        ui->songAmountlabel->setStyleSheet("");
+}
 

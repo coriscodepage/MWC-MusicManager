@@ -43,12 +43,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
         moveprimarycommand.h moveprimarycommand.cpp
         movesecondarycommand.h movesecondarycommand.cpp
-        deleteprimarycommand.h deleteprimarycommand.cpp
-        deletesecondarycommand.h deletesecondarycommand.cpp
+
+
         insertprimarycommand.h insertprimarycommand.cpp
         insertsecondarycommand.h insertsecondarycommand.cpp
         gamemanager.h gamemanager.cpp
         targetlistview.h targetlistview.cpp
+        removecommand.h removecommand.cpp
 
     )
 # Define target properties for Android with Qt 6 as:
