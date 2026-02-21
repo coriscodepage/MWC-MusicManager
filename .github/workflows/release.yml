@@ -71,8 +71,8 @@ jobs:
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
             curl -L https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -o ffmpeg.zip
-            tar -xf ffmpeg.zip
-            cp ffmpeg-*-essentials_build/bin/ffmpeg.exe install/bin/
+            powershell -Command "Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_extracted"
+            cp ffmpeg_extracted/ffmpeg-*-essentials_build/bin/ffmpeg.exe install/bin/
           else
             wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
             tar -xf ffmpeg-release-amd64-static.tar.xz
@@ -131,7 +131,9 @@ jobs:
             --plugin qt \
             --output appimage
 
-          mv *.AppImage MusicManager-linux.AppImage
+          APPIMAGE_PATH=$(find $GITHUB_WORKSPACE -maxdepth 2 -name "*.AppImage" ! -name "linuxdeploy*" ! -name "linuxdeploy-plugin*")
+          echo "Found AppImage at: $APPIMAGE_PATH"
+          mv "$APPIMAGE_PATH" $GITHUB_WORKSPACE/MusicManager-linux.AppImage
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
