@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # -----------------------------
-      # Install Qt6
+      # Install Qt6 with Multimedia
       # -----------------------------
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -27,6 +27,7 @@ jobs:
           host: ${{ runner.os == 'Windows' && 'windows' || 'linux' }}
           target: desktop
           arch: ${{ runner.os == 'Windows' && 'win64_msvc2019_64' || 'gcc_64' }}
+          modules: 'qtmultimedia'
 
       # -----------------------------
       # Linux dependencies
@@ -41,7 +42,7 @@ jobs:
       # Configure
       # -----------------------------
       - name: Configure
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQT_DEBUG_FIND_PACKAGE=ON
 
       # -----------------------------
       # Build
@@ -56,10 +57,34 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       # -----------------------------
-      # Install 
+      # Install
       # -----------------------------
       - name: Install
         run: cmake --install build --prefix install
+
+      # =====================================================
+      # BUNDLE yt-dlp and ffmpeg
+      # =====================================================
+      - name: Download yt-dlp
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o install/bin/yt-dlp.exe
+          else
+            wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O install/bin/yt-dlp
+            chmod +x install/bin/yt-dlp
+          fi
+
+      - name: Download ffmpeg
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            curl -L https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -o ffmpeg.zip
+            tar -xf ffmpeg.zip
+            move ffmpeg-*-essentials_build/bin/ffmpeg.exe install/bin/
+          else
+            wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+            tar -xf ffmpeg-release-amd64-static.tar.xz
+            cp ffmpeg-*-static/ffmpeg install/bin/
+          fi
 
       # =====================================================
       # WINDOWS DEPLOY
