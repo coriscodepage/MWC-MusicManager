@@ -65,9 +65,9 @@ MainWindow::MainWindow(QWidget *parent)
     QAction *action_undo = m_undoStack->createUndoAction(this, "Undo");
     QAction *action_redo = m_undoStack->createRedoAction(this, "Redo");
     action_undo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
-    action_undo->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::EditUndo));
+    action_undo->setIcon(QIcon::fromTheme("edit-undo"));
     action_redo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Y));
-    action_redo->setIcon(QIcon::fromTheme(QIcon::ThemeIcon::EditRedo));
+    action_redo->setIcon(QIcon::fromTheme("edit-redo"));
     QAction *firstEditAction = ui->menuEdit->actions().constFirst();
     ui->menuEdit->insertAction(firstEditAction, action_undo);
     ui->menuEdit->insertAction(firstEditAction, action_redo);

@@ -1,0 +1,163 @@
+name: Qt6 Windows + Linux Release
+
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.6.3"
+          host: ${{ runner.os == 'Windows' && 'windows' || 'linux' }}
+          target: desktop
+          arch: ${{ runner.os == 'Windows' && 'win64_msvc2019_64' || 'gcc_64' }}
+          modules: 'qtmultimedia'
+
+      - name: Install Linux tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y ninja-build wget xz-utils imagemagick
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQT_DEBUG_FIND_PACKAGE=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Install
+        run: cmake --install build --prefix install
+
+      # =====================================================
+      # BUNDLE yt-dlp
+      # =====================================================
+      - name: Download yt-dlp
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe -o install/bin/yt-dlp.exe
+          else
+            wget https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O install/bin/yt-dlp
+            chmod +x install/bin/yt-dlp
+          fi
+
+      # =====================================================
+      # BUNDLE ffmpeg
+      # =====================================================
+      - name: Download ffmpeg
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            curl -L https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip -o ffmpeg.zip
+            powershell -Command "Expand-Archive -Path ffmpeg.zip -DestinationPath ffmpeg_extracted"
+            cp ffmpeg_extracted/ffmpeg-*-essentials_build/bin/ffmpeg.exe install/bin/
+          else
+            wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+            tar -xf ffmpeg-release-amd64-static.tar.xz
+            cp ffmpeg-*-static/ffmpeg install/bin/
+          fi
+
+      # =====================================================
+      # WINDOWS DEPLOY
+      # =====================================================
+      - name: Deploy Qt (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          "$QT_ROOT_DIR/bin/windeployqt.exe" install/bin/MusicManager.exe --release
+          powershell -Command "Compress-Archive -Path install -DestinationPath MusicManager-windows.zip"
+
+      # =====================================================
+      # LINUX DEPLOY
+      # =====================================================
+      - name: Download linuxdeploy + Qt plugin
+        if: runner.os == 'Linux'
+        run: |
+          wget -c https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -c https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Generate desktop file
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir/usr/share/applications
+          cat > AppDir/usr/share/applications/MusicManager.desktop <<EOL
+          [Desktop Entry]
+          Type=Application
+          Name=MusicManager
+          Exec=MusicManager
+          Icon=MusicManager
+          Categories=AudioVideo;Audio;
+          Terminal=false
+          EOL
+
+      - name: Generate placeholder icon
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir/usr/share/icons/hicolor/128x128/apps
+          convert -size 128x128 xc:blue AppDir/usr/share/icons/hicolor/128x128/apps/MusicManager.png
+
+      - name: Build AppImage
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir/usr
+          cp -r install/* AppDir/usr/
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+
+          APPIMAGE_PATH=$(find $GITHUB_WORKSPACE -maxdepth 2 -name "*.AppImage" ! -name "linuxdeploy*" ! -name "linuxdeploy-plugin*")
+          echo "Found AppImage at: $APPIMAGE_PATH"
+          mv "$APPIMAGE_PATH" $GITHUB_WORKSPACE/MusicManager-linux.AppImage
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}
+          path: |
+            *.zip
+            *.AppImage
+
+  # =====================================================
+  # RELEASE JOB
+  # =====================================================
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Windows/MusicManager-windows.zip
+            Linux/MusicManager-linux.AppImage
