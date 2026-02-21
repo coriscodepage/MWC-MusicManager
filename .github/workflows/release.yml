@@ -86,8 +86,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          "$IQTA_TOOLS/../Qt/6.6.3/msvc2019_64/bin/windeployqt.exe" install/bin/MusicManager.exe --release
-          powershell Compress-Archive -Path install -DestinationPath MusicManager-windows.zip
+          "$QT_ROOT_DIR/bin/windeployqt.exe" install/bin/MusicManager.exe --release
+          powershell -Command "Compress-Archive -Path install -DestinationPath MusicManager-windows.zip"
 
       # =====================================================
       # LINUX DEPLOY
