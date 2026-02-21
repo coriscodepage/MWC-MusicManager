@@ -34,10 +34,8 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
         if (filtered.isEmpty()) {
             if(imageFiles.count() == 1)
                 name = imageFiles.constFirst();
-            else {
+            else
                 qWarning() << "[MusicObject] Cannot determine thumbnail path";
-                m_valid = false;
-            }
         } else
             name = filtered.constFirst();
         m_thumbnailName = QFileInfo(name);
