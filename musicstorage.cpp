@@ -3,6 +3,8 @@
 #include <QUrlQuery>
 #include <qeventloop.h>
 #include <QFileDialog>
+#include <qprocess.h>
+#include <qprogressdialog.h>
 
 MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {}
 
@@ -11,8 +13,8 @@ void MusicStorage::setMusicDir(const QDir &dir) {
         qWarning() << QString("[MusicStorage] Invalid dir of %1 No dir set.").arg(dir.absolutePath());
         return;
     }
-    qDebug() << QString("[MusicStorage] Music storage path: %1").arg(m_musicDir.absolutePath());
     m_musicDir = dir;
+    qDebug() << QString("[MusicStorage] Music storage path: %1").arg(m_musicDir.absolutePath());
 }
 
 QString MusicStorage::resolveHash(const QUrl &url)
@@ -78,7 +80,17 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QWidget *paren
         bool cleanUpdir = true;
         bool workDone = false;
         for (auto &object : objects) {
-            if (!object->isValid()) continue;
+            if (!object->isValid()) {
+                qDebug() << QString("[MusicStorage] Removing invalid object with title %1").arg(object->title());
+                QDir sPath = object->storagePath();
+                if(sPath.cd(object->entryPath().path())) {
+                    if(sPath.removeRecursively())
+                        continue;
+                }
+                qWarning() << QString("[MusicStorage] Removal of invalid object with title %1 failed").arg(object->title());
+                continue;
+            }
+
             if (songDir != object->storagePath().absoluteFilePath(object->getHash())) {
                 auto storagePath = songDir;
                 auto songName = object->songName();
@@ -106,8 +118,10 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QWidget *paren
                             QFile::remove(srcThumb);
                     }
                 }
-            } else
+            } else {
                 cleanUpdir = false;
+            }
+
             if (!m_songs.contains(object->getHash())) {
                 m_songs.insert(object->getHash(), object);
                 workDone = true;
@@ -139,7 +153,7 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QWidget *paren
     m_addedHashes.clear();
     return returnList;
 }
-void MusicStorage::importMusic(QWidget *parent) {
+QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent) {
     // for (auto &p : m_songs) {
     //     qDebug() << QString("[MusicStorage] Song with title of %1 has a use count of: %2").arg(p->title()).arg(p.use_count());
     // }
@@ -156,10 +170,6 @@ void MusicStorage::importMusic(QWidget *parent) {
             "WAV (*.wav *.aiff *.aif);;"
             "AAC / M4A (*.aac *.m4a *.mp4);;"
             "WMA (*.wma);;"
-            "WavPack (*.wv);;"
-            "Monkey's Audio (*.ape);;"
-            "Musepack (*.mpc);;"
-            "Speex (*.spx);;"
             "TrueAudio (*.tta);;"
             "DSD (*.dsf *.dff);;"
             "AC3 / DTS (*.ac3 *.dts);;"
@@ -167,6 +177,60 @@ void MusicStorage::importMusic(QWidget *parent) {
             )
         );
     qDebug() << QString("[MusicStorage] Importing %1 files").arg(files.count());
+    QVector<QString> hashes;
+    QQueue<QString> queue;
+    for (const auto &f : files) {
+        queue.enqueue(f);
+        hashes.append(QString("local%1").arg(qHash(QFileInfo(f).baseName())));
+    }
+    // convertQueue(queue);
+    return {};
+}
+
+void MusicStorage::convertQueue(QQueue<QString> &queue) {
+    QProcess *process = new QProcess(this);
+
+    QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100, nullptr); // TODO: Parent
+    progress->setWindowModality(Qt::ApplicationModal);
+    progress->setMinimumDuration(0);
+    progress->setValue(50);
+    progress->show();
+
+    connect(process, &QProcess::finished, this,
+            [this, process, progress](int exitCode, QProcess::ExitStatus status) {
+
+                QString output = process->readAllStandardOutput();
+                if (exitCode == 0) { // FIXME: Just pure heuristics.
+                    qDebug() << "[MusicStorage] Conversion success";
+                    progress->setValue(100);
+                    // handleConversionFinished(output,);
+                } else {
+                    qWarning() << "[MusicStorage] Conversion failed";
+                    qDebug() << "[MusicStorage] stderr: " << process->readAllStandardError();
+                    progress->setValue(100);
+                    // emit SingleConvertFinished();
+                }
+
+                process->deleteLater();
+                progress->deleteLater();
+            },
+            Qt::SingleShotConnection
+            );
+
+    connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
+        if (process)
+            process->kill();
+        progress->setValue(100);
+    },
+            Qt::SingleShotConnection
+            );
+
+    // process->start();
+
+    if (!process->waitForStarted()) {
+        qWarning() << "[Downloader] Failed to start yt-dlp";
+        return;
+    }
 }
 
 std::shared_ptr<MusicObject> MusicStorage::queryMusic(const QString &query) {
@@ -196,6 +260,10 @@ const QHash<QString, MusicObject> MusicStorage::getSongs() {
     return temp_map;
 }
 
+QHash<QString, std::shared_ptr<MusicObject>> &MusicStorage::getSongsShared() {
+    return m_songs;
+}
+
 void MusicStorage::setSongs(const QHash<QString, std::shared_ptr<MusicObject>> &songs) {
     m_songs = songs;
 }
@@ -216,4 +284,23 @@ void MusicStorage::checkedRemoveSong(const QString& hash) {
     if (it.value().use_count() == 1) {
         it.value()->markForDeletion();
     }
+}
+
+void MusicStorage::copyAllSongs(const QDir &newPath) {
+    for(auto &song : m_songs) {
+        song->copyToNewStoragePath(newPath);
+        song->setStoragePath(newPath);
+    }
+}
+
+void MusicStorage::moveAllSongs(const QDir &newPath) {
+    for(auto &song : m_songs) {
+        song->moveToNewStoragePath(newPath);
+        song->setStoragePath(newPath);
+    }
+}
+
+void MusicStorage::uncheckedRemoveAll() {
+    for(auto &song : m_songs)
+        song->deleteFromDisk();
 }

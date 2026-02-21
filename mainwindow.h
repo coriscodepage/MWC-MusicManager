@@ -70,8 +70,7 @@ private:
     QDir m_appDir;
     QUndoStack *m_undoStack;
     bool m_stickyModified;
-    void prepareWorkingDir();
-    void prepareAppDir();
+    void prepareDirectories();
     void songSelected(const QModelIndex &index);
     void songUpdated(const QModelIndex &index);
     QListView *currentListView() const;
@@ -79,6 +78,15 @@ private:
     void cut();
     void paste();
     void updateItemCountLabel();
+    void showInfoBox(const QString &message);
+    void showWarningBox(const QString &message);
+    void showErrorBox(const QString &message);
+    QString getDir(const QString &message, const QString &defaultPath);
+    bool setMusicDir(bool exp);
+    bool setGameDir(bool exp);
+    bool setAppDir(bool exp);
+    void setUiEnabled(bool enabled);
+    void musicMismatch(bool oldExists);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

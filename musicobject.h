@@ -24,6 +24,8 @@ public:
     void unmarkForDeletion();
     bool isForDeletion();
     void setStoragePath(const QDir &path);
+    void copyToNewStoragePath(const QDir &storagePath);
+    void moveToNewStoragePath(const QDir &storagePath);
     const QDir &storagePath() const;
     const QFileInfo &songName() const;
     const QFileInfo &thumbnailName() const;

@@ -334,6 +334,10 @@
     <property name="title">
      <string>Settings</string>
     </property>
+    <addaction name="actionSetGameDir"/>
+    <addaction name="actionSetMusicDir"/>
+    <addaction name="actionSetAppDir"/>
+    <addaction name="actionSetDirsDefault"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -423,6 +427,26 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+X</string>
+   </property>
+  </action>
+  <action name="actionSetGameDir">
+   <property name="text">
+    <string>Change game directory</string>
+   </property>
+  </action>
+  <action name="actionSetMusicDir">
+   <property name="text">
+    <string>Change music storage directory</string>
+   </property>
+  </action>
+  <action name="actionSetAppDir">
+   <property name="text">
+    <string>Change app save directory</string>
+   </property>
+  </action>
+  <action name="actionSetDirsDefault">
+   <property name="text">
+    <string>Change everything to game directory</string>
    </property>
   </action>
  </widget>

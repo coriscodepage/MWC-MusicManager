@@ -131,6 +131,44 @@ const QFileInfo &MusicObject::thumbnailName() const {
     return m_thumbnailName;
 }
 
+void MusicObject::copyToNewStoragePath(const QDir &storagePath) {
+    qDebug() << QString("[MusicObject] Copying %1 from storage of %2 to %2").arg(m_title, m_storagePath.path(), storagePath.path());
+    QDir actualCurrentPath = m_storagePath;
+    QDir actualNewPath = storagePath;
+    if (!actualCurrentPath.cd(m_entryPath.path())) {
+        qWarning() << QString("[MusicObject] Current entry path for title %1 does not exist. Bailing").arg(m_title);
+        return;
+    }
+
+    if (actualNewPath.exists(m_entryPath.path())) {
+        qWarning() << QString("[MusicObject] New entry path for title %1 exists. Removing").arg(m_title);
+        actualNewPath.remove(m_entryPath.path());
+    }
+
+    if (!actualNewPath.mkpath(m_entryPath.path())) {
+        qWarning() << QString("[MusicObject] New entry path for title %1 cannot be created. Bailing").arg(m_title);
+        return;
+    }
+
+    if (!actualNewPath.cd(m_entryPath.path())) {
+        qWarning() << QString("[MusicObject] New entry path for title %1 cannot be accessed. Bailing").arg(m_title);
+        return;
+    }
+
+    if(!QFile::copy(actualCurrentPath.absoluteFilePath(m_songName.fileName()), actualNewPath.absoluteFilePath(m_songName.fileName())))
+        qWarning() << QString("[MusicObject] Copy for song of title %1 failed").arg(m_title);
+
+    if(m_hasThumbnail)
+        if(!QFile::copy(actualCurrentPath.absoluteFilePath(m_thumbnailName.fileName()), actualNewPath.absoluteFilePath(m_thumbnailName.fileName())))
+            qWarning() << QString("[MusicObject] Copy for thumbnail of title %1 failed").arg(m_title);
+
+}
+
+void MusicObject::moveToNewStoragePath(const QDir &storagePath) {
+    copyToNewStoragePath(storagePath);
+    deleteFromDisk();
+}
+
 QDataStream &operator<<(QDataStream &out, const MusicObject &item) {
     out << item.title();
     out << item.duration();
