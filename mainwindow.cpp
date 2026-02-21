@@ -59,7 +59,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
-        setWindowModified(!clean);
+        if (!m_stickyModified)
+            setWindowModified(!clean);
     });
     QAction *action_undo = m_undoStack->createUndoAction(this, "Undo");
     QAction *action_redo = m_undoStack->createRedoAction(this, "Redo");
@@ -132,20 +133,35 @@ void MainWindow::on_deleteList_clicked() {
 
 
 void MainWindow::on_downloadItem_clicked() {
-    setWindowModified(true);
-    auto song = m_musicStore->downloadMusic(this);
-    if (song == nullptr) {
-        qWarning() << "[MainWindow] Download failed";
+
+    const auto songList = m_musicStore->downloadMusic(this);
+    if (songList.isEmpty()) {
+        qWarning() << "[MainWindow] Download failed or cancelled";
         return;
     }
-    auto selections = ui->listItemView->selectionModel()->selection().indexes();
-    if (selections.empty()) return; // TODO: In cases like this some logging would be in order.
-    QModelIndex selection = selections.constFirst();
-    QModelIndex index = m_secondarymodel->index(selection.row());
-    auto listItem = m_secondarymodel->getItem();
-    listItem->getItem(index.row())->setHash(song->getHash());
-    listItem->getItem(index.row())->setSong(song);
+
+    const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
+    if (indexes.isEmpty()) {
+        qWarning() << "[MainWindow] No selection to apply the download to";
+        return;
+    }
+
+    const QModelIndex selection = indexes.constFirst();
+    const QModelIndex index     = m_secondarymodel->index(selection.row());
+    auto *listItem              = m_secondarymodel->getItem();
+
+    listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
+    listItem->getItem(index.row())->setSong(songList.constFirst());
+
+    for (int i = 1; i < songList.count(); ++i) {
+        auto item = MusicItem(songList.at(i)->title(), songList.at(i));
+        m_secondarymodel->insertRowInternal(index.row() + i, item);
+    }
+
     songUpdated(index);
+    setWindowModified(true);
+    m_stickyModified = true;
+    ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
 }
 
 
@@ -333,7 +349,6 @@ void MainWindow::songUpdated(const QModelIndex &index) {
 }
 
 void MainWindow::on_play_clicked() {
-    m_musicStore->importMusic(QDir());
     auto selections = ui->listItemView->selectionModel()->selection().indexes();
     if (selections.empty()) return;
     auto selection = selections.first();
@@ -361,6 +376,7 @@ void MainWindow::saveAppData() {
     out << primaryItems;
     out << songs;
     setWindowModified(false);
+    m_stickyModified = false;
     qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
 }
 
@@ -518,5 +534,11 @@ void MainWindow::updateItemCountLabel() {
         ui->songAmountlabel->setStyleSheet("color: red;");
     else
         ui->songAmountlabel->setStyleSheet("");
+}
+
+
+void MainWindow::on_importItem_clicked()
+{
+    m_musicStore->importMusic(this);
 }
 

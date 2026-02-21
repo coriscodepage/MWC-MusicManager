@@ -15,11 +15,13 @@ class DownloadDialog : public QDialog
 public:
     explicit DownloadDialog(QWidget *parent = nullptr);
     QUrl url() const;
+    bool isPlaylistsAllowed() const;
     ~DownloadDialog();
 
 private:
     Ui::DownloadDialog *ui;
     QUrl m_url;
+    bool m_playlistsAllowed;
 };
 
 #endif // DOWNLOADDIALOG_H

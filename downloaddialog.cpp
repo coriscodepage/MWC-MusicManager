@@ -12,6 +12,10 @@ QUrl DownloadDialog::url() const {
     return ui->lineEdit->text();
 }
 
+bool DownloadDialog::isPlaylistsAllowed() const {
+    return  ui->allowButton->isChecked();
+}
+
 DownloadDialog::~DownloadDialog()
 {
     delete ui;

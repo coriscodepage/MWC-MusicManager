@@ -182,6 +182,9 @@ bool PrimaryListModel::removeRows(int row, int count, const QModelIndex &parent)
     qDebug() << QString("[PrimaryListModel] Removing %1 row(s) starting from %2 in primary list").arg(count).arg(row);
     beginRemoveRows(QModelIndex(), row, row + count - 1);
     for (int i = row + count - 1; i >= row; i--) {
+        for (auto &song : m_items.at(i).getItems()) {
+            m_musicStore->checkedRemoveSong(song.getHash());
+        }
         m_items.removeAt(i);
     }
     endRemoveRows();

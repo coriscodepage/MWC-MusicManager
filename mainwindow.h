@@ -57,6 +57,8 @@ private slots:
     void on_insertRadio_clicked();
 
 
+    void on_importItem_clicked();
+
 private:
     Ui::MainWindow *ui;
     PrimaryListModel *m_primarymodel;
@@ -67,6 +69,7 @@ private:
     QDir m_gameDir;
     QDir m_appDir;
     QUndoStack *m_undoStack;
+    bool m_stickyModified;
     void prepareWorkingDir();
     void prepareAppDir();
     void songSelected(const QModelIndex &index);

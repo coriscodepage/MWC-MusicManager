@@ -24,6 +24,9 @@ public:
     void unmarkForDeletion();
     bool isForDeletion();
     void setStoragePath(const QDir &path);
+    const QDir &storagePath() const;
+    const QFileInfo &songName() const;
+    const QFileInfo &thumbnailName() const;
     friend QDataStream &operator<<(QDataStream &out, const MusicObject &item);
     friend QDataStream &operator>>(QDataStream &in, MusicObject &item);
 

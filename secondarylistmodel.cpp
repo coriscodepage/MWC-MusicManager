@@ -84,6 +84,14 @@ bool SecondaryListModel::insertRows(int row, int count, const QModelIndex &paren
     return true;
 }
 
+bool SecondaryListModel::insertRowInternal(int row, MusicItem &item) {
+    if (m_item == nullptr || row < 0 || row > m_item->itemCount()) return false;
+    qDebug() << QString("[SecondaryListModel] Inserting row with data starting from %1 in %2 list").arg(row).arg(m_item->title());
+    beginInsertRows(QModelIndex(), row, row);
+    m_item->addItem(item, row);
+    endInsertRows();
+    return true;
+}
 
 void SecondaryListModel::addItemAt(const MusicItem &item, int row) {
     if (m_item == nullptr) return;

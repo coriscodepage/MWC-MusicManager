@@ -1,7 +1,10 @@
 #include "musicitem.h"
 #include <qpixmap.h>
 
-MusicItem::MusicItem(const QString &title, std::shared_ptr<MusicObject> song): m_title(title), m_song(song), m_hash(QString()) {}
+MusicItem::MusicItem(const QString &title, std::shared_ptr<MusicObject> song): m_title(title), m_song(song), m_hash(QString()) {
+    if (song != nullptr)
+        setHash(song->getHash());
+}
 
 const QString &MusicItem::title() const {
     if (m_title.isEmpty()) {

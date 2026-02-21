@@ -19,6 +19,30 @@ PasteCommand::PasteCommand(QListView *view, QByteArray &data, const QString &for
         list.append(index);
         auto mime = model->mimeData(list);
         m_oldData = mime->data(format);
+        if (format == "application/x-msc-list" && !m_oldData.isEmpty()) {
+            QDataStream streamOld(&m_oldData, QIODevice::ReadOnly);
+            QVector<bool> oldTypes;
+            while (!streamOld.atEnd()) {
+                QVariant v;
+                streamOld >> v;
+                ListItem item = v.value<ListItem>();
+                oldTypes.append(item.type());
+            }
+
+            QDataStream streamNew(&m_data, QIODevice::ReadOnly);
+            QByteArray encoded;
+            QDataStream streamEnc(&encoded, QIODevice::WriteOnly);
+            int i = 0;
+            while (!streamNew.atEnd()) {
+                QVariant v;
+                streamNew >> v;
+                ListItem item = v.value<ListItem>();
+                item.setType(oldTypes.at(qMin(oldTypes.length() - 1, i)));
+                streamEnc << QVariant::fromValue(item);
+                i++;
+            }
+            m_data = encoded;
+        }
     }
     m_row = row == -1 ? view->model()->rowCount() : row;
 }

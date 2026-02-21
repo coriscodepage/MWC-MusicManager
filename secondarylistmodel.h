@@ -35,6 +35,7 @@ public:
     QString getSongPath(int index) const;
     const QVector<MusicItem> &getSongs() const;
     void setHash(const QString &hash, int index);
+    bool insertRowInternal(int row, MusicItem &item);
 
 private:
     ListItem *m_item = nullptr;

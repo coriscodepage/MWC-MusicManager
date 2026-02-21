@@ -52,6 +52,10 @@ void ListItem::setItems(const QVector<MusicItem> &items) {
     m_items = items;
 }
 
+void ListItem::setType(bool type) {
+    m_type = type;
+}
+
 QDataStream &operator<<(QDataStream &out, const ListItem &item) {
     out << item.title();
     out << item.type();

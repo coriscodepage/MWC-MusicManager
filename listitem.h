@@ -19,6 +19,7 @@ public:
     void setItems(const QVector<MusicItem> &items);
     void removeItem(int index);
     int itemCount();
+    void setType(bool type);
 
     friend QDataStream &operator<<(QDataStream &out, const ListItem &item);
     friend QDataStream &operator>>(QDataStream &in, ListItem &item);

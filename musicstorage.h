@@ -12,9 +12,9 @@ class MusicStorage : public QObject
 public:
     explicit MusicStorage(QObject* parent = nullptr);
     void setMusicDir(const QDir &dir);
-    std::shared_ptr<MusicObject> downloadMusic(QWidget *parent);
+    QVector<std::shared_ptr<MusicObject>> downloadMusic(QWidget *parent);
     std::shared_ptr<MusicObject> queryMusic(const QString &query);
-    void importMusic(const QDir &path);
+    void importMusic(QWidget *parent);
     const QHash<QString, MusicObject> getSongs();
     void setSongs(const QHash<QString, std::shared_ptr<MusicObject>> &songs);
     void checkedRemoveSong(const QString& hash);
@@ -25,9 +25,10 @@ private:
     QDir m_musicDir;
     Downloader m_downloader;
     QHash<QString, std::shared_ptr<MusicObject>> m_songs;
-    QString m_tempHash;
+    QStringList m_addedHashes;
     bool m_dirty;
-
+    QString resolveHash(const QUrl &url);
+    bool prepareSongDir(QDir &songDir, const QString &hashValue);
 signals:
     void handled();
 

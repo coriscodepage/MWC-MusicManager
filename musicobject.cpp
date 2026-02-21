@@ -11,21 +11,21 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
     QStringList imageFiles = d.filter(".webp", Qt::CaseInsensitive) + d.filter(".jpg", Qt::CaseInsensitive) + d.filter(".png", Qt::CaseInsensitive); // FIXME: JANK. USE MIME TYPE.
 
     if (!oggFiles.isEmpty())
-        m_songName = QFileInfo(oggFiles.constFirst());
+        m_songName = QFileInfo(oggFiles.filter(title).constFirst());
     else {
         qWarning() << QString("[MusicObject] Can't find song in directory: %1").arg(actualCheckPath.path());
         m_valid = false;
         return;
     }
     if (!imageFiles.isEmpty())
-        m_thumbnailName = QFileInfo(imageFiles.constFirst());
+        m_thumbnailName = QFileInfo(imageFiles.filter(title).constFirst());
     else {
         qWarning() << QString("[MusicObject] Can't find thumbnail in directory: %1").arg(actualCheckPath.path()); // INFO: The lack of a thumbnail does not cause the app to crash and burn, no early return.
         m_hasThumbnail = false;
         m_thumbnailName = QFileInfo();
     }
     m_valid = true;
-    qDebug() << QString("[MusicObject] Created song with title: %1, duration %2:%3, artist: %4, path: %5").arg(title).arg(duration/60).arg(duration%60).arg(artist, actualCheckPath.path());
+    qDebug() << QString("[MusicObject] Created song with title: %1, duration %2:%3, artist: %4, path: %5").arg(title).arg(duration/60).arg(duration%60).arg(artist, storagePath.path());
     qDebug() << QString("[MusicObject] Song name: %1, Thumbnail name %2").arg(m_songName.fileName(), m_thumbnailName.fileName());
 }
 
@@ -35,6 +35,10 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
 
 void MusicObject::setStoragePath(const QDir &path) {
     m_storagePath = path;
+}
+
+const QDir &MusicObject::storagePath() const {
+    return m_storagePath;
 }
 
 bool MusicObject::isValid() const {
@@ -79,7 +83,10 @@ const QDir &MusicObject::entryPath() const {
 void MusicObject::deleteFromDisk() {
     qDebug() << QString("[MusicObject] Deleting: %1").arg(m_title);
     QDir deletePath = m_storagePath;
-    deletePath.cd(m_entryPath.path());
+    if(!deletePath.cd(m_entryPath.path())) {
+        qWarning() << QString("[MusicObject] Entering %1 failed. Bailing").arg(m_entryPath.path());
+        return;
+    }
     if (!deletePath.removeRecursively())
         qWarning() << QString("[MusicObject] Deleting: %1 failed").arg(m_title);
 }
@@ -94,6 +101,14 @@ void MusicObject::unmarkForDeletion() {
 
 bool MusicObject::isForDeletion() {
     return m_makedForDeletion;
+}
+
+const QFileInfo &MusicObject::songName() const {
+    return m_songName;
+}
+
+const QFileInfo &MusicObject::thumbnailName() const {
+    return m_thumbnailName;
 }
 
 QDataStream &operator<<(QDataStream &out, const MusicObject &item) {
