@@ -17,7 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # -----------------------------
       # Install Qt6
+      # -----------------------------
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -26,64 +28,75 @@ jobs:
           target: desktop
           arch: ${{ runner.os == 'Windows' && 'win64_msvc2019_64' || 'gcc_64' }}
 
+      # -----------------------------
       # Linux dependencies
+      # -----------------------------
       - name: Install Linux tools
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y ninja-build appimagekit
+          sudo apt install -y ninja-build wget
 
+      # -----------------------------
+      # Configure
+      # -----------------------------
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
+      # -----------------------------
+      # Build
+      # -----------------------------
       - name: Build
         run: cmake --build build
 
+      # -----------------------------
+      # Test
+      # -----------------------------
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      # ----------------------
+      # -----------------------------
+      # Install 
+      # -----------------------------
+      - name: Install
+        run: cmake --install build --prefix install
+
+      # =====================================================
       # WINDOWS DEPLOY
-      # ----------------------
+      # =====================================================
       - name: Deploy Qt (Windows)
         if: runner.os == 'Windows'
         run: |
-          windeployqt build\MusicManager.exe --release
-          mkdir dist
-          xcopy build\* dist\ /E /I
+          windeployqt install/bin/MusicManager.exe --release
+          powershell Compress-Archive install MusicManager-windows.zip
 
-      - name: Archive Windows
-        if: runner.os == 'Windows'
-        run: |
-          powershell Compress-Archive dist MusicManager-windows.zip
-
-      # ----------------------
-      # LINUX DEPLOY (AppImage)
-      # ----------------------
-      - name: Download linuxdeploy
+      # =====================================================
+      # LINUX DEPLOY (AppImage with Qt plugin)
+      # =====================================================
+      - name: Download linuxdeploy + Qt plugin
         if: runner.os == 'Linux'
         run: |
           wget -c https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -c https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
-
-      - name: Create AppDir
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p AppDir/usr/bin
-          cp build/MusicManager AppDir/usr/bin/
+          chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
 
       - name: Build AppImage
         if: runner.os == 'Linux'
         run: |
+          mkdir -p AppDir/usr
+          cp -r install/* AppDir/usr/
+
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
+            --plugin qt \
             --output appimage
 
-      - name: Rename Linux Artifact
-        if: runner.os == 'Linux'
-        run: mv *.AppImage MusicManager-linux.AppImage
+          mv *.AppImage MusicManager-linux.AppImage
 
-      # Upload artifacts
+      # -----------------------------
+      # Upload artifacts (for CI view)
+      # -----------------------------
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -92,6 +105,9 @@ jobs:
             *.zip
             *.AppImage
 
+  # =====================================================
+  # RELEASE JOB (Only runs on tag push)
+  # =====================================================
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
