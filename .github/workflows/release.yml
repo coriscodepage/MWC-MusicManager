@@ -36,7 +36,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y ninja-build wget
+          sudo apt install -y ninja-build wget xz-utils imagemagick
 
       # -----------------------------
       # Configure
@@ -57,13 +57,13 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       # -----------------------------
-      # Install
+      # Install (uses your CMake install rules)
       # -----------------------------
       - name: Install
         run: cmake --install build --prefix install
 
       # =====================================================
-      # BUNDLE yt-dlp and ffmpeg
+      # BUNDLE yt-dlp
       # =====================================================
       - name: Download yt-dlp
         run: |
@@ -74,6 +74,9 @@ jobs:
             chmod +x install/bin/yt-dlp
           fi
 
+      # =====================================================
+      # BUNDLE ffmpeg
+      # =====================================================
       - name: Download ffmpeg
         run: |
           if [ "${{ runner.os }}" == "Windows" ]; then
@@ -96,7 +99,7 @@ jobs:
           powershell Compress-Archive install MusicManager-windows.zip
 
       # =====================================================
-      # LINUX DEPLOY (AppImage with Qt plugin)
+      # LINUX DEPLOY (AppImage with dynamic .desktop)
       # =====================================================
       - name: Download linuxdeploy + Qt plugin
         if: runner.os == 'Linux'
@@ -105,6 +108,26 @@ jobs:
           wget -c https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
           chmod +x linuxdeploy-x86_64.AppImage
           chmod +x linuxdeploy-plugin-qt-x86_64.AppImage
+
+      - name: Generate desktop file
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir/usr/share/applications
+          cat > AppDir/usr/share/applications/MusicManager.desktop <<EOL
+[Desktop Entry]
+Type=Application
+Name=MusicManager
+Exec=MusicManager
+Icon=MusicManager
+Categories=AudioVideo;Audio;
+Terminal=false
+EOL
+
+      - name: Generate placeholder icon
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p AppDir/usr/share/icons/hicolor/128x128/apps
+          convert -size 128x128 xc:blue AppDir/usr/share/icons/hicolor/128x128/apps/MusicManager.png
 
       - name: Build AppImage
         if: runner.os == 'Linux'
@@ -120,7 +143,7 @@ jobs:
           mv *.AppImage MusicManager-linux.AppImage
 
       # -----------------------------
-      # Upload artifacts (for CI view)
+      # Upload artifacts
       # -----------------------------
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
