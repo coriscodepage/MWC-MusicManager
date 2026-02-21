@@ -10,16 +10,38 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
     QStringList oggFiles = d.filter(".ogg", Qt::CaseInsensitive);
     QStringList imageFiles = d.filter(".webp", Qt::CaseInsensitive) + d.filter(".jpg", Qt::CaseInsensitive) + d.filter(".png", Qt::CaseInsensitive); // FIXME: JANK. USE MIME TYPE.
 
-    if (!oggFiles.isEmpty())
-        m_songName = QFileInfo(oggFiles.filter(title).constFirst());
-    else {
+    if (!oggFiles.isEmpty()) {
+        auto filtered = oggFiles.filter(title);
+        QString name;
+        if (filtered.isEmpty()) {
+            if(oggFiles.count() == 1)
+                name = oggFiles.constFirst();
+            else {
+                qWarning() << "[MusicObject] Cannot determine song path";
+                m_valid = false;
+            }
+        } else
+            name = filtered.constFirst();
+        m_songName = QFileInfo(name);
+    } else {
         qWarning() << QString("[MusicObject] Can't find song in directory: %1").arg(actualCheckPath.path());
         m_valid = false;
         return;
     }
-    if (!imageFiles.isEmpty())
-        m_thumbnailName = QFileInfo(imageFiles.filter(title).constFirst());
-    else {
+    if (!imageFiles.isEmpty()) {
+        auto filtered = imageFiles.filter(title);
+        QString name;
+        if (filtered.isEmpty()) {
+            if(imageFiles.count() == 1)
+                name = imageFiles.constFirst();
+            else {
+                qWarning() << "[MusicObject] Cannot determine thumbnail path";
+                m_valid = false;
+            }
+        } else
+            name = filtered.constFirst();
+        m_thumbnailName = QFileInfo(name);
+    } else {
         qWarning() << QString("[MusicObject] Can't find thumbnail in directory: %1").arg(actualCheckPath.path()); // INFO: The lack of a thumbnail does not cause the app to crash and burn, no early return.
         m_hasThumbnail = false;
         m_thumbnailName = QFileInfo();

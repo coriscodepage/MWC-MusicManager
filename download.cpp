@@ -75,7 +75,7 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &
 }
 
 void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash) {
-    if (output.split("\n").count() > 1)
+    if (output.trimmed().split("\n").count() > 1)
         handleMultiple(output, songPath, hash);
     else
         handleSimple(output, songPath, hash);
