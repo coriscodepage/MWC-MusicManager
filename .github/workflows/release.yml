@@ -110,9 +110,9 @@ jobs:
           "$QT_ROOT_DIR/bin/windeployqt.exe" install/bin/MusicManager.exe --release
 
           # Copy libwebp dependency that windeployqt misses
-          cp "$QT_ROOT_DIR/bin/libwebp.dll" install/bin/
-          cp "$QT_ROOT_DIR/bin/libwebpmux.dll" install/bin/ || true
-          cp "$QT_ROOT_DIR/bin/libsharpyuv.dll" install/bin/ || true
+          #cp "$QT_ROOT_DIR/bin/libwebp.dll" install/bin/
+          #cp "$QT_ROOT_DIR/bin/libwebpmux.dll" install/bin/ || true
+          #cp "$QT_ROOT_DIR/bin/libsharpyuv.dll" install/bin/ || true
 
           powershell -Command "Compress-Archive -Path install -DestinationPath MusicManager-windows.zip"
 
