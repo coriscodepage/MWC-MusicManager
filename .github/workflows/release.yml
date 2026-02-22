@@ -150,7 +150,7 @@ jobs:
       - name: Build AppImage
         if: runner.os == 'Linux'
         env:
-          QMAKE: ${{ env.Qt6_DIR }}/bin/qmake
+          QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake
         run: |
           mkdir -p AppDir/usr
           cp -r install/* AppDir/usr/

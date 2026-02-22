@@ -52,6 +52,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         removecommand.h removecommand.cpp
         toggletypecommand.h toggletypecommand.cpp
         primarylistdelegate.h primarylistdelegate.cpp
+        edittitlecommand.h edittitlecommand.cpp
 
     )
 # Define target properties for Android with Qt 6 as:
