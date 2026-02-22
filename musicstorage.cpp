@@ -5,8 +5,20 @@
 #include <QFileDialog>
 #include <qprocess.h>
 #include <qprogressdialog.h>
+#include <QMediaPlayer>
+#include <QMediaMetaData>
 
-MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {}
+MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {
+#ifdef Q_OS_WIN
+    m_ffmpegPath = "ffmpeg.exe";
+#elif defined(Q_OS_MAC)
+    m_ffmpegPath = "ffmpeg";
+#elif defined(Q_OS_LINUX)
+    m_ffmpegPath = "ffmpeg";
+#else
+    m_ytdlpPath = "ffmpeg";
+#endif
+}
 
 void MusicStorage::setMusicDir(const QDir &dir) {
     if (!dir.exists()) {
@@ -153,6 +165,7 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QWidget *paren
     m_addedHashes.clear();
     return returnList;
 }
+
 QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent) {
     // for (auto &p : m_songs) {
     //     qDebug() << QString("[MusicStorage] Song with title of %1 has a use count of: %2").arg(p->title()).arg(p.use_count());
@@ -177,60 +190,135 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent)
             )
         );
     qDebug() << QString("[MusicStorage] Importing %1 files").arg(files.count());
-    QVector<QString> hashes;
     QQueue<QString> queue;
-    for (const auto &f : files) {
+    for (const auto &f : std::as_const(files))
         queue.enqueue(f);
-        hashes.append(QString("local%1").arg(qHash(QFileInfo(f).baseName())));
+
+    QString tmpFolder = QString("tmp%1").arg(QDateTime::currentSecsSinceEpoch());
+    if (!m_musicDir.mkpath(tmpFolder)) {
+        qWarning() << "[MusicStorage] Creating temporaty directory for conversion failed. Bailing";
+        return {};
     }
-    // convertQueue(queue);
-    return {};
+    m_addedFiles.clear();
+    convertQueue(queue, m_musicDir.absoluteFilePath(tmpFolder), parent);
+
+    auto oldDir = QDir(m_musicDir.absoluteFilePath(tmpFolder));
+    if (m_addedFiles.isEmpty()) {
+        oldDir.removeRecursively();
+        return {};
+    }
+
+    QVector<std::shared_ptr<MusicObject>> returnValues;
+    QMediaPlayer player(this);
+    QEventLoop loop;
+
+    auto conn = connect(&player, &QMediaPlayer::mediaStatusChanged, &loop, [&](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::InvalidMedia)
+            loop.quit();
+    });
+
+    for(auto &file : m_addedFiles) {
+        auto info = QFileInfo(file);
+        auto hash = QString("local%1").arg(qHash(info.baseName()));
+        auto newDir = QDir(m_musicDir.absoluteFilePath(hash));
+
+        player.setSource(QUrl::fromLocalFile(oldDir.absoluteFilePath(info.fileName())));
+
+        auto status = player.mediaStatus();
+        if (status != QMediaPlayer::LoadedMedia && status != QMediaPlayer::InvalidMedia)
+            loop.exec(); // blocks this function but not the app event loop
+
+        std::shared_ptr<MusicObject> obj;
+        if (player.mediaStatus() == QMediaPlayer::LoadedMedia) {
+            const auto meta = player.metaData();
+            auto title    = meta.value(QMediaMetaData::Title).toString();
+            auto artist   = meta.value(QMediaMetaData::ContributingArtist).toString();
+            auto duration = player.duration();
+            obj = std::make_shared<MusicObject>(title.isEmpty() ? info.baseName() : title, duration, artist, m_musicDir, hash, hash, oldDir);
+        } else
+            obj = std::make_shared<MusicObject>(info.baseName(), 0, "", m_musicDir, hash, hash, oldDir);
+
+        if (obj->isValid()) {
+            if(!m_musicDir.mkpath(newDir.absolutePath())) {
+                qWarning() << "[MusicStorage] Path creation failed";
+                continue;
+            }
+            const QString srcSong  = oldDir.absoluteFilePath(info.fileName());
+            const QString destSong = newDir.absoluteFilePath(info.fileName());
+
+            if (!QFile::copy(srcSong, destSong))
+                qWarning() << QString("[MusicStorage] Failed to copy song: %1 to %2").arg(srcSong, destSong);
+            else
+                QFile::remove(srcSong);
+
+            returnValues.append(obj);
+        } else
+            obj->deleteFromDisk();
+        if (!m_songs.contains(obj->getHash())) {
+            m_songs.insert(obj->getHash(), obj);
+            qDebug() << QString("[MusicStorage] Insering key: %1 with title: %2").arg(obj->getHash(), obj->title());
+        } else {
+            qDebug() << QString("[MusicStorage] Key: %1 with title: %2 already exists. Updating").arg(obj->getHash(), obj->title());
+            m_songs.value(obj->getHash())->setStoragePath(obj->storagePath()); // TODO: Update more stuff. Dont want to redo the object because that splits the pointers
+        }
+    }
+    oldDir.removeRecursively();
+    m_addedFiles.clear();
+    disconnect(conn);
+    return returnValues;
 }
 
-void MusicStorage::convertQueue(QQueue<QString> &queue) {
+void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath, QWidget *parent) {
+    m_canceled = false;
     QProcess *process = new QProcess(this);
-
-    QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100, nullptr); // TODO: Parent
+    QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100, parent); // TODO: Parent
     progress->setWindowModality(Qt::ApplicationModal);
     progress->setMinimumDuration(0);
     progress->setValue(50);
     progress->show();
 
-    connect(process, &QProcess::finished, this,
-            [this, process, progress](int exitCode, QProcess::ExitStatus status) {
-
-                QString output = process->readAllStandardOutput();
-                if (exitCode == 0) { // FIXME: Just pure heuristics.
-                    qDebug() << "[MusicStorage] Conversion success";
-                    progress->setValue(100);
-                    // handleConversionFinished(output,);
-                } else {
-                    qWarning() << "[MusicStorage] Conversion failed";
-                    qDebug() << "[MusicStorage] stderr: " << process->readAllStandardError();
-                    progress->setValue(100);
-                    // emit SingleConvertFinished();
-                }
-
-                process->deleteLater();
-                progress->deleteLater();
-            },
-            Qt::SingleShotConnection
-            );
-
     connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
         if (process)
             process->kill();
+        m_canceled = true;
         progress->setValue(100);
-    },
-            Qt::SingleShotConnection
-            );
+    }, Qt::SingleShotConnection);
 
-    // process->start();
+    QEventLoop loop; // INFO: Sync wait, non blocking.
+    connect(this, &MusicStorage::conversionFinished, &loop, &QEventLoop::quit);
+    for (auto &queueItem : queue) {
+        if (m_canceled) break;
+        QString filename = QFileInfo(queueItem).baseName() % ".ogg";
+        QStringList arguments;
+        arguments << "-i" << QFileInfo(queueItem).absoluteFilePath() << "-c:a" << "libvorbis" << "-q:a" << "4" << "-vn" << savePath.absoluteFilePath(filename);
 
-    if (!process->waitForStarted()) {
-        qWarning() << "[Downloader] Failed to start yt-dlp";
-        return;
+        connect(process, &QProcess::finished, this,
+                [this, process, filename](int exitCode, QProcess::ExitStatus status) {
+
+                    if (exitCode == 0) {
+                        qDebug() << "[MusicStorage] Conversion success";
+                        m_addedFiles.append(filename);
+                        emit conversionFinished();
+                    } else {
+                        qWarning() << "[MusicStorage] Conversion failed";
+                        qDebug() << "[MusicStorage] stderr: " << process->readAllStandardError();
+                        emit conversionFinished();
+                    }
+                }, Qt::SingleShotConnection);
+        process->start(m_ffmpegPath, arguments);
+
+        if (!process->waitForStarted()) {
+            qWarning() << "[Downloader] Failed to start yt-dlp";
+            return;
+        }
+        loop.exec();
     }
+    disconnect(this, &MusicStorage::conversionFinished, &loop, &QEventLoop::quit);
+    if(m_canceled) m_addedFiles.clear();
+    progress->setValue(100);
+    process->deleteLater();
+    progress->deleteLater();
+    m_canceled = false;
 }
 
 std::shared_ptr<MusicObject> MusicStorage::queryMusic(const QString &query) {

@@ -17,12 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # -----------------------------
+      # Setup MSVC
+      # -----------------------------
       - name: Setup MSVC
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
+      # -----------------------------
+      # Install Qt6 with Multimedia
+      # -----------------------------
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -32,21 +38,36 @@ jobs:
           arch: ${{ runner.os == 'Windows' && 'win64_msvc2019_64' || 'gcc_64' }}
           modules: 'qtmultimedia'
 
+      # -----------------------------
+      # Linux dependencies
+      # -----------------------------
       - name: Install Linux tools
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y ninja-build wget xz-utils imagemagick
+          sudo apt install -y ninja-build wget xz-utils imagemagick libwebp-dev
 
+      # -----------------------------
+      # Configure
+      # -----------------------------
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQT_DEBUG_FIND_PACKAGE=ON
 
+      # -----------------------------
+      # Build
+      # -----------------------------
       - name: Build
         run: cmake --build build
 
+      # -----------------------------
+      # Test
+      # -----------------------------
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+      # -----------------------------
+      # Install
+      # -----------------------------
       - name: Install
         run: cmake --install build --prefix install
 
@@ -87,10 +108,16 @@ jobs:
         shell: bash
         run: |
           "$QT_ROOT_DIR/bin/windeployqt.exe" install/bin/MusicManager.exe --release
+
+          # Copy libwebp dependency that windeployqt misses
+          cp "$QT_ROOT_DIR/bin/libwebp.dll" install/bin/
+          cp "$QT_ROOT_DIR/bin/libwebpmux.dll" install/bin/ || true
+          cp "$QT_ROOT_DIR/bin/libsharpyuv.dll" install/bin/ || true
+
           powershell -Command "Compress-Archive -Path install -DestinationPath MusicManager-windows.zip"
 
       # =====================================================
-      # LINUX DEPLOY
+      # LINUX DEPLOY (AppImage)
       # =====================================================
       - name: Download linuxdeploy + Qt plugin
         if: runner.os == 'Linux'
@@ -104,7 +131,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           mkdir -p AppDir/usr/share/applications
-          cat > AppDir/usr/share/applications/MusicManager.desktop <<EOL
+          cat > AppDir/usr/share/applications/MusicManager.desktop <<'EOL'
           [Desktop Entry]
           Type=Application
           Name=MusicManager
@@ -122,6 +149,8 @@ jobs:
 
       - name: Build AppImage
         if: runner.os == 'Linux'
+        env:
+          QMAKE: ${{ env.Qt6_DIR }}/bin/qmake
         run: |
           mkdir -p AppDir/usr
           cp -r install/* AppDir/usr/
@@ -131,10 +160,11 @@ jobs:
             --plugin qt \
             --output appimage
 
-          APPIMAGE_PATH=$(find $GITHUB_WORKSPACE -maxdepth 2 -name "*.AppImage" ! -name "linuxdeploy*" ! -name "linuxdeploy-plugin*")
-          echo "Found AppImage at: $APPIMAGE_PATH"
-          mv "$APPIMAGE_PATH" $GITHUB_WORKSPACE/MusicManager-linux.AppImage
+          mv $GITHUB_WORKSPACE/MusicManager-x86_64.AppImage $GITHUB_WORKSPACE/MusicManager-linux.AppImage
 
+      # -----------------------------
+      # Upload artifacts
+      # -----------------------------
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -144,7 +174,7 @@ jobs:
             *.AppImage
 
   # =====================================================
-  # RELEASE JOB
+  # RELEASE JOB (Only runs on tag push)
   # =====================================================
   release:
     if: startsWith(github.ref, 'refs/tags/v')

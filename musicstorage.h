@@ -31,14 +31,16 @@ private:
     Downloader m_downloader;
     QHash<QString, std::shared_ptr<MusicObject>> m_songs;
     QStringList m_addedHashes;
+    QStringList m_addedFiles;
     bool m_dirty;
+    QString m_ffmpegPath;
+    bool m_canceled;
     QString resolveHash(const QUrl &url);
     bool prepareSongDir(QDir &songDir, const QString &hashValue);
-    void convertQueue(QQueue<QString> &queue);
+    void convertQueue(QQueue<QString> &queue, const QDir &savePath, QWidget *parent);
 signals:
     void handled();
     void conversionFinished();
-    void singleConvertFinished(const QString &hash);
 
 };
 

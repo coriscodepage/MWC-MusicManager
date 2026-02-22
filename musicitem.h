@@ -18,6 +18,7 @@ public:
     const QString &getHash() const;
     void setHash(const QString &hash);
     bool hasThumbnail();
+    bool hasSong();
 
     friend QDataStream &operator<<(QDataStream &out, const MusicItem &item);
     friend QDataStream &operator>>(QDataStream &in, MusicItem &item);

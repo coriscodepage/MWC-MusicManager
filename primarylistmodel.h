@@ -8,6 +8,7 @@
 
 class PrimaryListModel : public QAbstractListModel
 {
+    Q_OBJECT
 public:
     explicit PrimaryListModel(QObject *parent = nullptr, MusicStorage *musicStore = nullptr, QUndoStack *undoStack = nullptr);
 
@@ -33,6 +34,7 @@ public:
     QVector<ListItem> &getItems();
     void setItems(const QVector<ListItem> &items);
     void moveInternal(const QVector<ListItem> &movingItems, int sourceRow, int count, int destinationChild);
+    void setType(int index, bool type);
 
 private:
     QVector<ListItem> m_items;
@@ -41,6 +43,8 @@ private:
     QUndoStack *m_undoStack;
     void insertAt(const ListItem &item, int index = -1);
 
+signals:
+    void typeChanged();
 };
 
 #endif // PRIMARYLISTMODEL_H

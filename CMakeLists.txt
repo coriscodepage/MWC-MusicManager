@@ -50,6 +50,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         gamemanager.h gamemanager.cpp
         targetlistview.h targetlistview.cpp
         removecommand.h removecommand.cpp
+        toggletypecommand.h toggletypecommand.cpp
+        primarylistdelegate.h primarylistdelegate.cpp
 
     )
 # Define target properties for Android with Qt 6 as:

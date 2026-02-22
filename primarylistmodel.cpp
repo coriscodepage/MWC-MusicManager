@@ -26,13 +26,15 @@ QVariant PrimaryListModel::data(const QModelIndex &index, int role) const {
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
         case 0:
-            return m_items[index.row()].title() + "    " + (m_items[index.row()].type() ? "CD" : "Radio");
+            return m_items[index.row()].title();
             break;
         default:
             break;
         }
     } else if (role == Qt::EditRole) {
         return m_items[index.row()].title();
+    } else if (role == Qt::UserRole) {
+        return m_items[index.row()].type() ? "CD" : "Radio";
     }
 
     return QVariant();
@@ -56,6 +58,17 @@ bool PrimaryListModel::setData(const QModelIndex &index, const QVariant &value, 
         return true;
     }
     return false;
+}
+
+void PrimaryListModel::setType(int index, bool type) {
+    if(index < 0 || index > m_items.count()) return;
+    bool oldType = m_items[index].type();
+    m_items[index].setType(type);
+    if(type != oldType) {
+        emit typeChanged();
+        QModelIndex idx = this->index(index, 0);
+        emit dataChanged(idx, idx);
+    };
 }
 
 ListItem &PrimaryListModel::getItem(const QModelIndex &index) {

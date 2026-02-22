@@ -36,6 +36,10 @@ const QString &MusicItem::titleInternal() const {
     return m_title;
 }
 
+bool MusicItem::hasSong() {
+    return m_song != nullptr;
+}
+
 QString MusicItem::pixmapPath() const {
     if(m_song == nullptr) return QString();
     return m_song->thumbnailPath();

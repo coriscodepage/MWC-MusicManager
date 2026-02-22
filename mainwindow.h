@@ -29,6 +29,7 @@ private slots:
     void on_addCD_clicked();
     void handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
     void handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
+    void updateItemCountLabel();
     void saveAppData();
     void loadAppData();
 
@@ -77,7 +78,6 @@ private:
     void copy();
     void cut();
     void paste();
-    void updateItemCountLabel();
     void showInfoBox(const QString &message);
     void showWarningBox(const QString &message);
     void showErrorBox(const QString &message);
@@ -87,6 +87,7 @@ private:
     bool setAppDir(bool exp);
     void setUiEnabled(bool enabled);
     void musicMismatch(bool oldExists);
+    void songUnselected();
 
 protected:
     void closeEvent(QCloseEvent *event) override;

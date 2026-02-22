@@ -57,6 +57,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
              <widget class="QPushButton" name="newItem">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="text">
                <string>New Song</string>
               </property>
@@ -64,6 +67,9 @@
             </item>
             <item>
              <widget class="QPushButton" name="deleteList">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
               <property name="text">
                <string>Delete list</string>
               </property>
@@ -93,7 +99,10 @@
        </layout>
       </item>
       <item>
-       <widget class="QGroupBox" name="groupBox_2">
+       <widget class="QGroupBox" name="insertGroupBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="sizePolicy">
          <sizepolicy hsizetype="Ignored" vsizetype="Preferred">
           <horstretch>0</horstretch>
@@ -224,6 +233,9 @@
           </item>
           <item>
            <widget class="QPushButton" name="play">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
             <property name="text">
              <string/>
             </property>
@@ -234,6 +246,9 @@
           </item>
           <item>
            <widget class="QPushButton" name="stop">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
             <property name="text">
              <string/>
             </property>
