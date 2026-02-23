@@ -11,12 +11,14 @@ public:
     MusicItem(const QString &title, std::shared_ptr<MusicObject> song);
     const QString &title() const;
     const QString &titleInternal() const;
+    QString artist() const;
     QString pixmapPath() const;
     QString songPath() const;
     void setTitle(const QString &title);
     void setSong(std::shared_ptr<MusicObject> song);
     const QString &getHash() const;
     void setHash(const QString &hash);
+    void setArtist(const QString &artist);
     bool hasThumbnail();
     bool hasSong();
 

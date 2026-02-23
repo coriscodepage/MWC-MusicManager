@@ -3,10 +3,11 @@
 
 #include "listitem.h"
 #include "musicstorage.h"
+#include "textfieldedit.h"
 #include <QStringListModel>
 #include <qundostack.h>
 
-class PrimaryListModel : public QAbstractListModel
+class PrimaryListModel : public QAbstractListModel, public TextFieldEdit
 {
     Q_OBJECT
 public:
@@ -35,6 +36,8 @@ public:
     void setItems(const QVector<ListItem> &items);
     void moveInternal(const QVector<ListItem> &movingItems, int sourceRow, int count, int destinationChild);
     void setType(int index, bool type);
+    void setField(int field, const QString &value, const QModelIndex &index) override;
+    QString getField(int field, const QModelIndex &index) override;
 
 private:
     QVector<ListItem> m_items;

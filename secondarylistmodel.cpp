@@ -1,5 +1,5 @@
 #include "secondarylistmodel.h"
-#include "movecommand.h"
+#include "edittitlecommand.h"
 #include "movesecondarycommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
@@ -51,8 +51,8 @@ Qt::ItemFlags SecondaryListModel::flags(const QModelIndex &index) const {
 
 bool SecondaryListModel::setData(const QModelIndex &index, const QVariant &value, int role) {
     if (role == Qt::EditRole && m_item != nullptr) {
-        m_item->getItem(index.row())->setTitle(value.toString());
-        emit dataChanged(index, index, {role});
+        auto *cmd = new EditTitleCommand(this, 0, value.toString(), index);
+        m_undoStack->push(cmd);
         return true;
     }
     return false;
@@ -212,6 +212,12 @@ QString SecondaryListModel::getTitle(int index) const {
     return title;
 }
 
+QString SecondaryListModel::getArtist(int index) const {
+    if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return {};
+    QString artist = m_item->getItem(index)->artist();
+    return artist;
+}
+
 QString SecondaryListModel::getHash(int index) const {
     if (m_item == nullptr || index < 0 || index >= m_item->itemCount()) return {};
     QString hash = m_item->getItem(index)->getHash();
@@ -242,4 +248,34 @@ const QVector<MusicItem> &SecondaryListModel::getSongs() const {
     static const QVector<MusicItem> empty;
     if (m_item == nullptr) return empty;
     return m_item->getItems();
+}
+
+void SecondaryListModel::setField(int field, const QString &value, const QModelIndex &index) {
+    if (m_item == nullptr) return;
+    auto *item = m_item->getItem(index.row());
+    switch (field) {
+    case 0:
+        item->setTitle(value);
+        break;
+    case 1:
+        if (item->hasSong())
+            item->setArtist(value);
+        break;
+    }
+    emit dataChanged(index, index, {Qt::EditRole});
+}
+
+QString SecondaryListModel::getField(int field, const QModelIndex &index) {
+    if (m_item == nullptr) return {};
+    auto *item = m_item->getItem(index.row());
+    switch (field) {
+    case 0:
+        return item->title();
+        break;
+    case 1:
+        if (item->hasSong())
+            return item->artist();
+        break;
+    }
+    return {};
 }

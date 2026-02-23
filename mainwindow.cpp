@@ -227,11 +227,11 @@ void MainWindow::on_downloadItem_clicked() {
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
 
-    songUpdated(index);
     setWindowModified(true);
     m_stickyModified = true;
     ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
     updateItemCountLabel();
+    songUpdated(index);
 }
 
 
@@ -509,6 +509,7 @@ void MainWindow::songSelected(const QModelIndex &index) {
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
     ui->songLabel->setText(m_secondarymodel->getTitle(index.row()));
+    ui->artistLabel->setText(m_secondarymodel->getArtist(index.row()));
     auto item = m_secondarymodel->getItem();
     auto music = item ? item->getItem(index.row()) : nullptr;
     if (music && music->hasSong()) {
@@ -526,6 +527,7 @@ void MainWindow::songUnselected() {
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
     ui->songLabel->setText("");
+    ui->artistLabel->setText("");
     ui->play->setEnabled(false);
     ui->stop->setEnabled(false);
 }
@@ -536,7 +538,9 @@ void MainWindow::songUpdated(const QModelIndex &index) {
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
     QString title = m_secondarymodel->getTitle(index.row());
+    QString artist = m_secondarymodel->getArtist(index.row());
     ui->songLabel->setText(title);
+    ui->artistLabel->setText(artist);
 }
 
 void MainWindow::on_play_clicked() {
@@ -760,11 +764,11 @@ void MainWindow::on_importItem_clicked()
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
 
-    songUpdated(index);
     setWindowModified(true);
     m_stickyModified = true;
     ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
     updateItemCountLabel();
+    songUpdated(index);
 }
 
 void MainWindow::musicMismatch(bool oldExists) {

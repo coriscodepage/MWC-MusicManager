@@ -4,10 +4,11 @@
 #include "listitem.h"
 #include "musicitem.h"
 #include "musicstorage.h"
+#include "textfieldedit.h"
 #include <QAbstractListModel>
 #include <qundostack.h>
 
-class SecondaryListModel : public QAbstractListModel
+class SecondaryListModel : public QAbstractListModel, public TextFieldEdit
 {
 public:
     explicit SecondaryListModel(QObject *parent = nullptr, MusicStorage *musicStore = nullptr, QUndoStack *undoStack = nullptr);
@@ -30,12 +31,15 @@ public:
     void setSource(ListItem *item);
     void moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild);
     QString getTitle(int index) const;
+    QString getArtist(int index) const;
     QString getHash(int index) const;
     QPixmap getPixmap(int index) const;
     QString getSongPath(int index) const;
     const QVector<MusicItem> &getSongs() const;
     void setHash(const QString &hash, int index);
     bool insertRowInternal(int row, MusicItem &item);
+    void setField(int field, const QString &value, const QModelIndex &index) override;
+    QString getField(int field, const QModelIndex &index) override;
 
 private:
     ListItem *m_item = nullptr;

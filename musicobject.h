@@ -12,8 +12,10 @@ public:
     bool isValid() const;
     bool hasThumbnail() const;
     const QString &title() const;
+    void setTitle(const QString &title);
     int duration() const;
     const QString &artist() const;
+    void setArtist(const QString &artist);
     QString thumbnailPath() const;
     const QFileInfo &extracted() const;
     QString songPath() const;

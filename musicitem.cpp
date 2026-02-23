@@ -27,6 +27,11 @@ void MusicItem::setSong(std::shared_ptr<MusicObject> song) {
     m_title = "";
 }
 
+QString MusicItem::artist() const {
+    if(m_song == nullptr) return QString();
+    return m_song->artist();
+}
+
 QString MusicItem::songPath() const {
     if(m_song == nullptr) return QString();
     return m_song->songPath();
@@ -55,6 +60,11 @@ void MusicItem::setHash(const QString &hash) {
 bool MusicItem::hasThumbnail() {
     if(m_song == nullptr) return false;
     return m_song->hasThumbnail();
+}
+
+void MusicItem::setArtist(const QString &artist) {
+    if(m_song == nullptr) return;
+    m_song->setArtist(artist);
 }
 
 QDataStream &operator<<(QDataStream &out, const MusicItem &item) {

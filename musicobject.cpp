@@ -169,6 +169,14 @@ void MusicObject::moveToNewStoragePath(const QDir &storagePath) {
     deleteFromDisk();
 }
 
+void MusicObject::setArtist(const QString &artist) {
+    m_artist = artist;
+}
+
+void MusicObject::setTitle(const QString &title) {
+    m_title = title;
+}
+
 QDataStream &operator<<(QDataStream &out, const MusicObject &item) {
     out << item.title();
     out << item.duration();

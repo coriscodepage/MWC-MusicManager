@@ -1,4 +1,5 @@
 #include "primarylistmodel.h"
+#include "edittitlecommand.h"
 #include "moveprimarycommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
@@ -53,8 +54,8 @@ Qt::ItemFlags PrimaryListModel::flags(const QModelIndex &index) const {
 
 bool PrimaryListModel::setData(const QModelIndex &index, const QVariant &value, int role) {
     if (role == Qt::EditRole) {
-        m_items[index.row()].setTitle(value.toString());
-        emit dataChanged(index, index, {role});
+        auto *cmd = new EditTitleCommand(this, 0, value.toString(), index);
+        m_undoStack->push(cmd);
         return true;
     }
     return false;
@@ -245,4 +246,19 @@ void PrimaryListModel::moveInternal(const QVector<ListItem> &movingItems, int so
     for (int i = 0; i < movingItems.size(); ++i)
         m_items.insert(insertPos + i, movingItems[i]);
     endMoveRows();
+}
+
+void PrimaryListModel::setField(int field, const QString &value, const QModelIndex &index) {
+    if(!index.isValid()) return;
+    if (field == 0) {
+        m_items[index.row()].setTitle(value);
+        emit dataChanged(index, index, {Qt::EditRole});
+    }
+}
+
+QString PrimaryListModel::getField(int field, const QModelIndex &index) {
+    if(!index.isValid()) return {};
+    if (field == 0)
+        return m_items.at(index.row()).title();
+    return {};
 }
