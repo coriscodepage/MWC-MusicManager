@@ -220,15 +220,11 @@ bool PrimaryListModel::insertRows(int row, int count, const QModelIndex &parent)
 bool PrimaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) {
     Q_UNUSED(sourceParent)
     Q_UNUSED(destinationParent)
-
     if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
         return false;
-
-    beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
     QVector<ListItem> movingItems;
     for (int i = 0; i < count; ++i)
-        movingItems.append(m_items[sourceRow]);
-
+        movingItems.append(m_items[sourceRow + i]);
     MovePrimaryCommand *cmd = new MovePrimaryCommand(this, movingItems, sourceRow, count, destinationChild);
     m_undoStack->push(cmd);
     return true;
@@ -241,10 +237,14 @@ void PrimaryListModel::moveInternal(const QVector<ListItem> &movingItems, int so
         m_items.removeAt(sourceRow);
 
     int insertPos = destinationChild;
-    if (destinationChild > sourceRow) insertPos -= count;
+    if (destinationChild > sourceRow)
+        insertPos -= count;
+
+    insertPos = qBound(0, insertPos, m_items.size());
 
     for (int i = 0; i < movingItems.size(); ++i)
         m_items.insert(insertPos + i, movingItems[i]);
+
     endMoveRows();
 }
 

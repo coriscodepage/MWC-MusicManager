@@ -12,11 +12,11 @@ MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Down
 #ifdef Q_OS_WIN
     m_ffmpegPath = "ffmpeg.exe";
 #elif defined(Q_OS_MAC)
-    m_ffmpegPath = "ffmpeg";
+    m_ffmpegPath = "./ffmpeg";
 #elif defined(Q_OS_LINUX)
-    m_ffmpegPath = "ffmpeg";
+    m_ffmpegPath = "./ffmpeg";
 #else
-    m_ytdlpPath = "ffmpeg";
+    m_ytdlpPath = "./ffmpeg";
 #endif
 }
 

@@ -9,9 +9,11 @@ MoveSecondaryCommand::MoveSecondaryCommand(SecondaryListModel *model, const QVec
 {}
 
 void MoveSecondaryCommand::undo() {
-    m_model->moveInternal(m_movingItems,
-                          m_destinationChild > m_sourceRow ? m_destinationChild - m_count : m_destinationChild,
-                          m_count, m_sourceRow);
+    if (m_destinationChild > m_sourceRow) {
+        m_model->moveInternal(m_movingItems, m_destinationChild - m_count, m_count, m_sourceRow);
+    } else {
+        m_model->moveInternal(m_movingItems, m_destinationChild, m_count, m_sourceRow + m_count);
+    }
 }
 
 void MoveSecondaryCommand::redo() {

@@ -12,11 +12,11 @@ Downloader::Downloader(QObject* parent) : QObject(parent) {
     #ifdef Q_OS_WIN
         m_ytdlpPath = "yt-dlp.exe";
     #elif defined(Q_OS_MAC)
-        m_ytdlpPath = "yt-dlp";
+        m_ytdlpPath = "./yt-dlp";
     #elif defined(Q_OS_LINUX)
-        m_ytdlpPath = "yt-dlp";
+        m_ytdlpPath = "./yt-dlp";
     #else
-        m_ytdlpPath = "yt-dlp";
+        m_ytdlpPath = "./yt-dlp";
     #endif
 }
 
