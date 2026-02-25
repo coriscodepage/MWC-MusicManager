@@ -15,12 +15,14 @@
 #include <QClipboard>
 #include <qmimedata.h>
 #include <QMessageBox>
+#include <QImageReader>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    qDebug() << "Supported formats:" << QImageReader::supportedImageFormats();
     m_mediaPlayer = new QMediaPlayer(this);
     QAudioOutput* audioOutput = new QAudioOutput(this);
     audioOutput->setVolume(50);
