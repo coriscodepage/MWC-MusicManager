@@ -14,7 +14,7 @@ Downloader::Downloader(QObject* parent) : QObject(parent) {
     #elif defined(Q_OS_MAC)
         m_ytdlpPath = "./yt-dlp";
     #elif defined(Q_OS_LINUX)
-        m_ytdlpPath = "./yt-dlp";
+        m_ytdlpPath = "yt-dlp"; //TODO: Use system if can't find local and alert if not found
     #else
         m_ytdlpPath = "./yt-dlp";
     #endif
@@ -69,6 +69,8 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &
 
     if (!process->waitForStarted()) {
         qWarning() << "[Downloader] Failed to start yt-dlp";
+        qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
+        progress->cancel();
         return;
     }
 

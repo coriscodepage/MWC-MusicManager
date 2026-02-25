@@ -68,7 +68,7 @@ private:
     MusicStorage *m_musicStore;
     GameManager *m_gameManager;
     QDir m_gameDir;
-    QDir m_appDir;
+    QFileInfo m_appSave;
     QUndoStack *m_undoStack;
     bool m_stickyModified;
     void prepareDirectories();
@@ -84,9 +84,9 @@ private:
     QString getDir(const QString &message, const QString &defaultPath);
     bool setMusicDir(bool exp);
     bool setGameDir(bool exp);
-    bool setAppDir(bool exp);
+    bool setSaveFile(bool exp, bool open = true);
     void setUiEnabled(bool enabled);
-    void musicMismatch(bool oldExists);
+    void musicMismatch(bool oldExists, const QDir &oldDir);
     void songUnselected();
 
 protected:

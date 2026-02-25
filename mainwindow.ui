@@ -376,7 +376,6 @@
     </property>
     <addaction name="actionSetGameDir"/>
     <addaction name="actionSetMusicDir"/>
-    <addaction name="actionSetAppDir"/>
     <addaction name="actionSetDirsDefault"/>
    </widget>
    <widget class="QMenu" name="menuHelp">

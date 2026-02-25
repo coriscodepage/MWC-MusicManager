@@ -30,7 +30,6 @@ MainWindow::MainWindow(QWidget *parent)
     prepareDirectories();
     m_gameManager = new GameManager(m_gameDir);
     qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
-    qDebug() << QString("[MainWindow] Application path: %1").arg(m_appDir.absolutePath());
     m_primarymodel = new PrimaryListModel(this, m_musicStore, m_undoStack);
     m_secondarymodel = new SecondaryListModel(this, m_musicStore, m_undoStack);
     ui->listView->setModel(m_primarymodel);
@@ -42,33 +41,28 @@ MainWindow::MainWindow(QWidget *parent)
         if(!m_gameDir.exists()) setUiEnabled(false);
         QSettings settings("Kori", "Music Manager");
         if (res) {
-            musicMismatch(true);
             m_stickyModified = true;
         }
 
+
     });
-    connect(ui->actionSetAppDir, &QAction::triggered, this, [this]() {
-        bool res = setAppDir(true);
-        if(!m_appDir.exists()) setUiEnabled(false);
-        QSettings settings("Kori", "Music Manager");
-        if (res) {
-            musicMismatch(true);
-            m_stickyModified = true;
-        }
-    });
+    connect(ui->actionOpen, &QAction::triggered, this, [this]() {setSaveFile(true);});
+    connect(ui->actionSaveAs, &QAction::triggered, this, [this]() {setSaveFile(true, false);});
+    connect(ui->actionClose, &QAction::triggered, this, &QApplication::quit);
+
     connect(ui->actionSetMusicDir, &QAction::triggered, this, [this]() {
+        QDir oldDir = m_musicStore->getMusicDir();
         bool res = setMusicDir(true);
         if(!m_musicStore->getMusicDir().exists()) setUiEnabled(false);
         if(res) {
-            musicMismatch(true);
+            musicMismatch(true, oldDir);
             m_stickyModified = true;
         }
     });
     connect(ui->actionSetDirsDefault, &QAction::triggered, this, [this]() {
         QSettings settings("Kori", "Music Manager");
         settings.remove("musicdir");
-        settings.remove("appdir");
-        prepareDirectories();
+        showInfoBox(tr("Save and restart to set the locations."));
     });
 
     connect(ui->listView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handlePrimaryListSelectionChanged);
@@ -127,8 +121,13 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listView->setDropIndicatorShown(true);
     ui->listView->setDefaultDropAction(Qt::MoveAction);
 
-    if(QFileInfo(m_appDir.filePath("data.msc")).isFile())
+    if(m_appSave.isFile())
         loadAppData();
+    else if(QFile::exists(m_gameDir.absoluteFilePath("data.msc"))) {
+        qDebug() << "[MainWindow] Loading save from backup location";
+        m_appSave = QFileInfo(m_gameDir.absoluteFilePath("data.msc"));
+        loadAppData();
+    }
 
     ui->downloadControls->setEnabled(false);
 }
@@ -248,7 +247,7 @@ void MainWindow::prepareDirectories() {
     }
     setUiEnabled(false);
     setGameDir(false);
-    setAppDir(false);
+    setSaveFile(false);
     setMusicDir(false);
     if (m_gameDir.exists())
         setUiEnabled(true);
@@ -286,10 +285,10 @@ void MainWindow::setUiEnabled(bool enabled) {
 bool MainWindow::setMusicDir(bool exp) {
     QSettings settings("Kori", "Music Manager");
     QString musicDirName = "music";
-    QDir musicDir = m_appDir;
+    QDir musicDir = m_gameDir;
 
     if (exp) {
-        QString path = getDir(tr("Select music directory"), m_appDir.exists() ? m_appDir.absolutePath() : QDir::homePath());
+        QString path = getDir(tr("Select music directory"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath());
         if (!path.isEmpty() && QDir(path).exists()) {
             settings.setValue("musicdir", QVariant::fromValue(path));
             musicDir = QDir(path);
@@ -300,10 +299,12 @@ bool MainWindow::setMusicDir(bool exp) {
     } else {
         if (settings.contains("musicdir")) {
             auto path = settings.value("musicdir").toString();
-            if (!path.isEmpty() && QDir(path).exists())
+            if (!path.isEmpty() && QDir(path).exists()) {
                 musicDir = QDir(path);
-            else {
+                settings.setValue("musicdir", QVariant::fromValue(path));
+            } else {
                 showWarningBox(tr("Music directory invalid. Defaulting to game directory. If that is incorrect change it in the settings."));
+                settings.setValue("musicdir", QVariant::fromValue(m_gameDir.absolutePath()));
             }
         }
     }
@@ -335,7 +336,6 @@ bool MainWindow::setGameDir(bool exp) {
                     QString saveVal = dir.absolutePath();
                     settings.setValue("gamedir", QVariant::fromValue(saveVal));
                     m_gameDir = dir;
-                    setAppDir(false);
                     setMusicDir(false);
                     return true;
                 }
@@ -355,45 +355,40 @@ bool MainWindow::setGameDir(bool exp) {
     return false;
 }
 
-bool MainWindow::setAppDir(bool exp) {
+bool MainWindow::setSaveFile(bool exp, bool open) {
     QSettings settings("Kori", "Music Manager");
-    QString subDirName = "musicManager";
 
-    if(exp) {
-        QString path = getDir(tr("Select application save directory"), m_appDir.exists() ? m_appDir.absolutePath() : QDir::homePath());
-        if (!path.isEmpty() && QDir(path).exists()) {
-            settings.setValue("appdir", QVariant::fromValue(path));
-            m_appDir = QDir(path);
+    if (exp) {
+        if (open) {
+            QString saveFilePath = QFileDialog::getOpenFileName(this,tr("Open File"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath() , tr("MusicManager save (*.msc)"));
+            QFileInfo info(saveFilePath);
+            if (!info.isFile()) return false;
+            m_appSave = info;
+            settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
+            return true;
         } else {
-            showWarningBox(tr("Please select a valid directory."));
-            return false;
+            QString saveFilePath = QFileDialog::getSaveFileName(this, tr("Save File"), m_appSave.exists() ? m_appSave.absolutePath() : m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath(), tr("MusicManager save (*.msc)"));
+            m_appSave = QFileInfo(saveFilePath);
+            settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
+            return true;
         }
     } else {
-        if (settings.contains("appdir")) {
-            auto path = settings.value("appdir").toString();
-            if (!path.isEmpty() && QDir(path).exists()) {
-                m_appDir = QDir(path);
-                setMusicDir(false);
+        if (settings.contains("saveLocation")) {
+            QString saveFilePath = settings.value("saveLocation").toString();
+            QFileInfo info(saveFilePath);
+            if (!info.isFile()) {
+                setSaveFile(true);
+                return true;
             } else {
-                showWarningBox(tr("App directory invalid. Defaulting to game directory. If that is incorrect change it in the settings."));
-                m_appDir = m_gameDir;
+                m_appSave = info;
+                return false;
             }
         } else {
-            m_appDir = m_gameDir;
+            if (m_gameDir.exists())
+                settings.setValue("saveLocation", QVariant::fromValue(m_gameDir.absoluteFilePath("save.msc")));
         }
     }
-
-    if (!m_appDir.exists(subDirName)) {
-        if (!m_appDir.mkpath(subDirName)) {
-            qWarning() << "[MainWindow] Failed to create app subdirectory";
-            return false;
-        }
-    }
-    if (!m_appDir.cd(subDirName)) {
-        qWarning() << "[MainWindow] Failed to enter app subdirectory";
-        return false;
-    }
-    return exp;
+    return false;
 }
 
 void MainWindow::showListContextMenu(const QPoint &pos)
@@ -558,7 +553,9 @@ void MainWindow::on_stop_clicked() {
 }
 
 void MainWindow::saveAppData() {
-    QFileInfo savePath = QFileInfo(m_appDir.filePath("data.msc"));
+    if (!m_appSave.isFile()) setSaveFile(true, false);
+    if (!m_appSave.isFile()) m_appSave = QFileInfo(m_gameDir.absoluteFilePath("save.msc"));
+    QFileInfo savePath = m_appSave;
     qDebug() << "[MainWindow] Save start";
     qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
     QFile file(savePath.absoluteFilePath());
@@ -578,7 +575,7 @@ void MainWindow::saveAppData() {
 
 void MainWindow::loadAppData() {
     qDebug() << "[MainWindow] Load start";
-    QFile file(m_appDir.filePath("data.msc"));
+    QFile file(m_appSave.absoluteFilePath());
 
     if (!file.open(QIODevice::ReadOnly))
         return;
@@ -602,7 +599,7 @@ void MainWindow::loadAppData() {
     m_musicStore->setSongs(songsShared);
 
     if (m_musicStore->getMusicDir() != musicPath)
-        musicMismatch(!musicPath.isEmpty() && QDir(musicPath).exists());
+        musicMismatch(!musicPath.isEmpty() && QDir(musicPath).exists(), musicPath);
 
     int secondarySum = 0;
     for (auto &prim : m_primarymodel->getItems()) {
@@ -771,18 +768,21 @@ void MainWindow::on_importItem_clicked()
     songUpdated(index);
 }
 
-void MainWindow::musicMismatch(bool oldExists) {
+void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir) {
     auto songsShared = m_musicStore->getSongsShared();
     QMessageBox msgBox(this);
     msgBox.setWindowTitle(tr("Music directory mismatch"));
     msgBox.setText(tr("Saved music directory does not match the current one. Choose how to solve this issue."));
+    QPushButton *setToButton = nullptr;
     QPushButton *copyButton =   nullptr;
     QPushButton *moveButton =   nullptr;
     QPushButton *deleteButton = nullptr;
     if (oldExists) {
+        deleteButton = msgBox.addButton(tr("Delete old (New session)"), QMessageBox::ActionRole);
+        if (oldDir.exists())
+            setToButton = msgBox.addButton(tr("Set music direcory to the saved one"), QMessageBox::ActionRole);
         copyButton = msgBox.addButton(tr("Copy old to new"), QMessageBox::ActionRole);
         moveButton = msgBox.addButton(tr("Move old to new"), QMessageBox::ActionRole);
-        deleteButton = msgBox.addButton(tr("Delete old (New session)"), QMessageBox::ActionRole);
     } else {
         deleteButton = msgBox.addButton(tr("New session"), QMessageBox::ActionRole);
     }
@@ -794,10 +794,12 @@ void MainWindow::musicMismatch(bool oldExists) {
         m_musicStore->copyAllSongs(m_musicStore->getMusicDir());
     } else if (moveButton != nullptr && msgBox.clickedButton() == moveButton) {
         m_musicStore->moveAllSongs(m_musicStore->getMusicDir());
-    } else if (deleteButton || moveButton != nullptr && msgBox.clickedButton() == deleteButton) {
+    } else if (deleteButton != nullptr && msgBox.clickedButton() == deleteButton) {
         m_primarymodel->removeRows(0, m_primarymodel->rowCount());
         m_musicStore->uncheckedRemoveAll();
         m_musicStore->setSongs({});
+    } else if (setToButton != nullptr && msgBox.clickedButton() == setToButton) {
+        m_musicStore->setMusicDir(oldDir);
     } else {
         exit(EXIT_FAILURE);
     }

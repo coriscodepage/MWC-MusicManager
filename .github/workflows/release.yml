@@ -36,7 +36,7 @@ jobs:
           host: ${{ runner.os == 'Windows' && 'windows' || 'linux' }}
           target: desktop
           arch: ${{ runner.os == 'Windows' && 'win64_msvc2019_64' || 'gcc_64' }}
-          modules: 'qtmultimedia'
+          modules: 'qtmultimedia qtimageformats'
 
       # -----------------------------
       # Linux dependencies
@@ -109,9 +109,17 @@ jobs:
         run: |
           "$QT_ROOT_DIR/bin/windeployqt.exe" install/bin/MusicManager.exe --release
 
-          # Force include webp plugin in case windeployqt missed it
+          echo "=== QT_ROOT_DIR ==="
+          echo "$QT_ROOT_DIR"
+
+          echo "=== Available imageformat plugins ==="
+          find "$QT_ROOT_DIR/plugins/imageformats" -type f
+
+          echo "=== Deployed imageformats ==="
+          ls install/bin/imageformats/ || echo "imageformats folder missing"
+
           mkdir -p install/bin/imageformats
-          cp "$QT_ROOT_DIR/plugins/imageformats/qwebp.dll" install/bin/imageformats/ || true
+          cp "$QT_ROOT_DIR/plugins/imageformats/qwebp.dll" install/bin/imageformats/ || echo "qwebp.dll not found"
 
           powershell -Command "Compress-Archive -Path install -DestinationPath MusicManager-windows.zip"
 
@@ -131,14 +139,14 @@ jobs:
         run: |
           mkdir -p AppDir/usr/share/applications
           cat > AppDir/usr/share/applications/MusicManager.desktop <<'EOL'
-          [Desktop Entry]
-          Type=Application
-          Name=MusicManager
-          Exec=MusicManager
-          Icon=MusicManager
-          Categories=AudioVideo;Audio;
-          Terminal=false
-          EOL
+[Desktop Entry]
+Type=Application
+Name=MusicManager
+Exec=MusicManager
+Icon=MusicManager
+Categories=AudioVideo;Audio;
+Terminal=false
+EOL
 
       - name: Generate placeholder icon
         if: runner.os == 'Linux'
@@ -154,9 +162,17 @@ jobs:
           mkdir -p AppDir/usr
           cp -r install/* AppDir/usr/
 
-          # Force include webp plugin in case linuxdeploy missed it
+          echo "=== QT_ROOT_DIR ==="
+          echo "$QT_ROOT_DIR"
+
+          echo "=== Available imageformat plugins ==="
+          find "$QT_ROOT_DIR/plugins/imageformats" -type f
+
+          echo "=== Deployed imageformats ==="
+          ls AppDir/usr/plugins/imageformats/ || echo "imageformats folder missing"
+
           mkdir -p AppDir/usr/plugins/imageformats
-          cp "$QT_ROOT_DIR/plugins/imageformats/libqwebp.so" AppDir/usr/plugins/imageformats/ || true
+          cp "$QT_ROOT_DIR/plugins/imageformats/libqwebp.so" AppDir/usr/plugins/imageformats/ || echo "libqwebp.so not found"
 
           ./linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
