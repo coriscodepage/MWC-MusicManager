@@ -139,14 +139,14 @@ jobs:
         run: |
           mkdir -p AppDir/usr/share/applications
           cat > AppDir/usr/share/applications/MusicManager.desktop <<'EOL'
-[Desktop Entry]
-Type=Application
-Name=MusicManager
-Exec=MusicManager
-Icon=MusicManager
-Categories=AudioVideo;Audio;
-Terminal=false
-EOL
+          [Desktop Entry]
+          Type=Application
+          Name=MusicManager
+          Exec=MusicManager
+          Icon=MusicManager
+          Categories=AudioVideo;Audio;
+          Terminal=false
+          EOL
 
       - name: Generate placeholder icon
         if: runner.os == 'Linux'
