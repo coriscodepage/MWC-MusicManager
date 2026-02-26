@@ -250,6 +250,11 @@ const QVector<MusicItem> &SecondaryListModel::getSongs() const {
     return m_item->getItems();
 }
 
+const QString SecondaryListModel::getInsertHash() const {
+    if (m_item == nullptr) return QString();
+    return m_item->getInsertHash();
+}
+
 void SecondaryListModel::setField(int field, const QString &value, const QModelIndex &index) {
     if (m_item == nullptr) return;
     auto *item = m_item->getItem(index.row());

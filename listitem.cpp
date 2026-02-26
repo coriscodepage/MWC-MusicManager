@@ -1,7 +1,10 @@
 #include "listitem.h"
 
 
-ListItem::ListItem(const QString &title, bool type) : m_title(title), m_type(type) {}
+ListItem::ListItem(const QString &title, bool type, const QString &hash) : m_title(title), m_type(type), m_insertHash(hash) {
+    if (m_insertHash.isEmpty())
+        m_insertHash = QString("%1%2").arg(qHash(this)).arg(QDateTime::currentMSecsSinceEpoch());
+}
 
 const QString &ListItem::title() const {
     return m_title;
@@ -56,10 +59,15 @@ void ListItem::setType(bool type) {
     m_type = type;
 }
 
+const QString &ListItem::getInsertHash() const {
+    return m_insertHash;
+}
+
 QDataStream &operator<<(QDataStream &out, const ListItem &item) {
     out << item.title();
     out << item.type();
     out << item.getItems();
+    out << item.getInsertHash();
     return out;
 }
 
@@ -68,10 +76,12 @@ QDataStream &operator>>(QDataStream &in, ListItem &item) {
     QString title;
     bool type;
     QVector<MusicItem> items;
+    QString insertHash;
     in >> title;
     in >> type;
     in >> items;
-    ListItem temp_item(title, type);
+    in >> insertHash;
+    ListItem temp_item(title, type, insertHash);
     temp_item.setItems(items);
     item = temp_item;
     return in;

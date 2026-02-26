@@ -7,17 +7,22 @@
 #include <qprogressdialog.h>
 #include <QMediaPlayer>
 #include <QMediaMetaData>
+#include <QStandardPaths>
 
 MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {
-#ifdef Q_OS_WIN
-    m_ffmpegPath = "ffmpeg.exe";
-#elif defined(Q_OS_MAC)
-    m_ffmpegPath = "./ffmpeg";
-#elif defined(Q_OS_LINUX)
-    m_ffmpegPath = "./ffmpeg";
-#else
-    m_ytdlpPath = "./ffmpeg";
-#endif
+    #ifdef Q_OS_WIN
+        m_ffmpegPath = "ffmpeg.exe";
+    #elif defined(Q_OS_MAC)
+        m_ffmpegPath = "./ffmpeg";
+    #elif defined(Q_OS_LINUX)
+        m_ffmpegPath = "./ffmpeg";
+    #else
+        m_ffmpegPath = "./ffmpeg";
+    #endif
+
+    QString ffmpegExe = QStandardPaths::findExecutable("ffmpeg");
+    if (!ffmpegExe.isEmpty())
+        m_ffmpegPath = ffmpegExe;
 }
 
 void MusicStorage::setMusicDir(const QDir &dir) {

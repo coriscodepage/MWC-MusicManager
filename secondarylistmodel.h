@@ -40,6 +40,7 @@ public:
     bool insertRowInternal(int row, MusicItem &item);
     void setField(int field, const QString &value, const QModelIndex &index) override;
     QString getField(int field, const QModelIndex &index) override;
+    const QString getInsertHash() const;
 
 private:
     ListItem *m_item = nullptr;

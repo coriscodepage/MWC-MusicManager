@@ -155,11 +155,41 @@ void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, con
     m_secondarymodel->setSource(&data);
     bool state = m_primarymodel->rowCount() > 0;
     ui->listItemView->setEnabled(state);
-    ui->insertGroupBox->setEnabled(state);
+    if (state)
+        setInsertGroupBox();
+    else
+        ui->insertGroupBox->setEnabled(state);
     ui->newItem->setEnabled(state);
     ui->deleteList->setEnabled(state);
     if (!state) songUnselected();
     updateItemCountLabel();
+}
+
+void MainWindow::setInsertGroupBox() {
+    ui->insertGroupBox->setEnabled(true);
+    auto inserted = m_gameManager->getAllInserted();
+    auto current = m_secondarymodel->getInsertHash();
+    if (inserted.contains(current)) {
+        switch (inserted.indexOf(current)) {
+            case GameManager::CD1:
+                ui->insertCD1->setStyleSheet("font-weight: bold;");
+            break;
+            case GameManager::CD2:
+                ui->insertCD2->setStyleSheet("font-weight: bold;");
+            break;
+            case GameManager::CD3:
+                ui->insertCD3->setStyleSheet("font-weight: bold;");
+            break;
+            case GameManager::RADIO:
+                ui->insertRadio->setStyleSheet("font-weight: bold;");
+            break;
+        }
+    } else {
+        ui->insertCD1->setStyleSheet("");
+        ui->insertCD2->setStyleSheet("");
+        ui->insertCD3->setStyleSheet("");
+        ui->insertRadio->setStyleSheet("");
+    }
 }
 
 void MainWindow::handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
@@ -538,6 +568,8 @@ void MainWindow::songUpdated(const QModelIndex &index) {
     QString artist = m_secondarymodel->getArtist(index.row());
     ui->songLabel->setText(title);
     ui->artistLabel->setText(artist);
+    ui->play->setEnabled(true);
+    ui->stop->setEnabled(true);
 }
 
 void MainWindow::on_play_clicked() {
@@ -566,9 +598,11 @@ void MainWindow::saveAppData() {
     QDataStream out(&file);
     auto primaryItems = m_primarymodel->getItems();
     auto songs = m_musicStore->getSongs();
+    auto insertedList = m_gameManager->getAllInserted();
     m_undoStack->clear();
     out << primaryItems;
     out << songs;
+    out << insertedList;
     out << m_musicStore->getMusicDir().absolutePath();
     setWindowModified(false);
     m_stickyModified = false;
@@ -586,7 +620,8 @@ void MainWindow::loadAppData() {
     QVector<ListItem> primaryList;
     QHash<QString, MusicObject> songsOwned;
     QString musicPath;
-    in >> primaryList >> songsOwned >> musicPath;
+    QVector<QString> insertedList;
+    in >> primaryList >> songsOwned >> insertedList >> musicPath;
     m_primarymodel->setItems(primaryList);
     QHash<QString, std::shared_ptr<MusicObject>> songsShared;
 
@@ -598,6 +633,7 @@ void MainWindow::loadAppData() {
         songsShared.insert(key, std::make_shared<MusicObject>(value));
     }
 
+    m_gameManager->setInserted(insertedList);
     m_musicStore->setSongs(songsShared);
 
     if (m_musicStore->getMusicDir() != musicPath)
@@ -680,27 +716,39 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::on_insertCD1_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD1");
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD1, m_secondarymodel->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD1")), 3000);
+    setWindowModified(true);
+    m_stickyModified = true;
+    setInsertGroupBox();
 }
 
 
 void MainWindow::on_insertCD2_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD2");
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD2, m_secondarymodel->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD2")), 3000);
+    setWindowModified(true);
+    m_stickyModified = true;
+    setInsertGroupBox();
 }
 
 void MainWindow::on_insertCD3_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "CD3");
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD3, m_secondarymodel->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD3")), 3000);
+    setWindowModified(true);
+    m_stickyModified = true;
+    setInsertGroupBox();
 }
 
 void MainWindow::on_insertRadio_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), "Radio");
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::RADIO, m_secondarymodel->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("Radio")), 3000);
+    setWindowModified(true);
+    m_stickyModified = true;
+    setInsertGroupBox();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)

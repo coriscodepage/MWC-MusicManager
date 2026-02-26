@@ -88,6 +88,7 @@ private:
     void setUiEnabled(bool enabled);
     void musicMismatch(bool oldExists, const QDir &oldDir);
     void songUnselected();
+    void setInsertGroupBox();
 
 protected:
     void closeEvent(QCloseEvent *event) override;

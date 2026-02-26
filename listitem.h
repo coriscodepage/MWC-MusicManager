@@ -7,7 +7,7 @@ class ListItem
 {
 public:
     ListItem() = default;
-    ListItem(const QString &title, bool type = false);
+    ListItem(const QString &title, bool type = false, const QString &hash = QString());
     const QString &title() const;
     const bool type() const;
     void setTitle(const QString &title);
@@ -20,12 +20,14 @@ public:
     void removeItem(int index);
     int itemCount();
     void setType(bool type);
+    const QString &getInsertHash() const;
 
     friend QDataStream &operator<<(QDataStream &out, const ListItem &item);
     friend QDataStream &operator>>(QDataStream &in, ListItem &item);
 private:
     QString m_title;
     bool m_type;
+    QString m_insertHash;
     QVector<MusicItem> m_items;
 };
 

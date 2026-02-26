@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QProgressDialog>
 #include <qurlquery.h>
+#include <QStandardPaths>
 
 Downloader::Downloader(QObject* parent) : QObject(parent) {
     #ifdef Q_OS_WIN
@@ -14,10 +15,14 @@ Downloader::Downloader(QObject* parent) : QObject(parent) {
     #elif defined(Q_OS_MAC)
         m_ytdlpPath = "./yt-dlp";
     #elif defined(Q_OS_LINUX)
-        m_ytdlpPath = "yt-dlp"; //TODO: Use system if can't find local and alert if not found
+        m_ytdlpPath = "yt-dlp"; //TODO: alert if not found
     #else
         m_ytdlpPath = "./yt-dlp";
     #endif
+
+    QString ytdlpExe = QStandardPaths::findExecutable("yt-dlp");
+    if (!ytdlpExe.isEmpty())
+        m_ytdlpPath = ytdlpExe;
 }
 
 void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &hash, QWidget *parent, bool allowPlaylists) {
