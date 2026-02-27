@@ -25,6 +25,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout">
             <item>
              <widget class="QPushButton" name="addCD">
+              <property name="cursor">
+               <cursorShape>PointingHandCursor</cursorShape>
+              </property>
               <property name="text">
                <string>Add CD list</string>
               </property>
@@ -32,6 +35,9 @@
             </item>
             <item>
              <widget class="QPushButton" name="addRadio">
+              <property name="cursor">
+               <cursorShape>PointingHandCursor</cursorShape>
+              </property>
               <property name="text">
                <string>Add Radio list</string>
               </property>
@@ -60,6 +66,9 @@
               <property name="enabled">
                <bool>false</bool>
               </property>
+              <property name="cursor">
+               <cursorShape>PointingHandCursor</cursorShape>
+              </property>
               <property name="text">
                <string>New Song</string>
               </property>
@@ -69,6 +78,9 @@
              <widget class="QPushButton" name="deleteList">
               <property name="enabled">
                <bool>false</bool>
+              </property>
+              <property name="cursor">
+               <cursorShape>PointingHandCursor</cursorShape>
               </property>
               <property name="text">
                <string>Delete list</string>
@@ -115,6 +127,9 @@
         <layout class="QHBoxLayout" name="horizontalLayout_3">
          <item>
           <widget class="QPushButton" name="insertCD1">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>CD1</string>
            </property>
@@ -122,6 +137,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="insertCD2">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>CD2</string>
            </property>
@@ -129,6 +147,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="insertCD3">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>CD3</string>
            </property>
@@ -136,6 +157,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="insertRadio">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>Radio</string>
            </property>
@@ -260,6 +284,9 @@
              <property name="enabled">
               <bool>false</bool>
              </property>
+             <property name="cursor">
+              <cursorShape>PointingHandCursor</cursorShape>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -272,6 +299,9 @@
             <widget class="QPushButton" name="stop">
              <property name="enabled">
               <bool>false</bool>
+             </property>
+             <property name="cursor">
+              <cursorShape>PointingHandCursor</cursorShape>
              </property>
              <property name="text">
               <string/>
@@ -332,6 +362,9 @@
         <layout class="QHBoxLayout" name="horizontalLayout_9">
          <item>
           <widget class="QPushButton" name="downloadItem">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>Download</string>
            </property>
@@ -339,6 +372,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="importItem">
+           <property name="cursor">
+            <cursorShape>PointingHandCursor</cursorShape>
+           </property>
            <property name="text">
             <string>Import</string>
            </property>

@@ -22,7 +22,6 @@ void TargetListView::dragMoveEvent(QDragMoveEvent *event)
 
 void TargetListView::dragLeaveEvent(QDragLeaveEvent *event)
 {
-    selectionModel()->clearCurrentIndex();
     QListView::dragLeaveEvent(event);
 }
 

@@ -1,7 +1,7 @@
 #include "gamemanager.h"
 
 GameManager::GameManager(const QDir &gamePath): m_gamePath(gamePath) {
-    for(int i = 0; i < 3; i++) m_inserted.append(QString());
+    for(int i = 0; i < 4; i++) m_inserted.append(QString());
 }
 
 void GameManager::insertSubdirToGame(const QVector<MusicItem> &songs, const Drives &type, const QString &insertHash) {

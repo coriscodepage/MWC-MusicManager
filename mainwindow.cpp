@@ -169,6 +169,10 @@ void MainWindow::setInsertGroupBox() {
     ui->insertGroupBox->setEnabled(true);
     auto inserted = m_gameManager->getAllInserted();
     auto current = m_secondarymodel->getInsertHash();
+    ui->insertCD1->setStyleSheet("");
+    ui->insertCD2->setStyleSheet("");
+    ui->insertCD3->setStyleSheet("");
+    ui->insertRadio->setStyleSheet("");
     if (inserted.contains(current)) {
         switch (inserted.indexOf(current)) {
             case GameManager::CD1:
@@ -184,11 +188,6 @@ void MainWindow::setInsertGroupBox() {
                 ui->insertRadio->setStyleSheet("font-weight: bold;");
             break;
         }
-    } else {
-        ui->insertCD1->setStyleSheet("");
-        ui->insertCD2->setStyleSheet("");
-        ui->insertCD3->setStyleSheet("");
-        ui->insertRadio->setStyleSheet("");
     }
 }
 
