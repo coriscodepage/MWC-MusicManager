@@ -5,7 +5,7 @@ GameManager::GameManager(const QDir &gamePath): m_gamePath(gamePath) {
 }
 
 void GameManager::insertSubdirToGame(const QVector<MusicItem> &songs, const Drives &type, const QString &insertHash) {
-    const static QString subDirs[] = {"CD1", "CD2", "CD3", "RADIO"};
+    const static QString subDirs[] = {"CD1", "CD2", "CD3", "Radio"};
     QDir insertDir = m_gamePath;
     if (!insertDir.cd(subDirs[type])) {
         qWarning() << QString("[GameManager] Cd to %1 failed").arg(subDirs[type]);
