@@ -8,7 +8,7 @@
 class InsertPrimaryCommand : public QUndoCommand
 {
 public:
-    InsertPrimaryCommand(QListView *view, PrimaryListModel *model, const QString &title, bool type, int row);
+    InsertPrimaryCommand(QListView *view, PrimaryListModel *model, const QString &title, bool type, int row, bool edit = true, QUndoCommand *parent = nullptr);
     void undo() override;
     void redo() override;
 

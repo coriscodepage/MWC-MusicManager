@@ -8,6 +8,7 @@
 #include <QMediaPlayer>
 #include <QMediaMetaData>
 #include <QStandardPaths>
+#include <QRandomGenerator>
 
 MusicStorage::MusicStorage(QObject* parent) : QObject(parent), m_downloader(Downloader(this)), m_dirty(false) {
     #ifdef Q_OS_WIN
@@ -171,29 +172,31 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QWidget *paren
     return returnList;
 }
 
-QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent) {
+QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent, QStringList files) {
     // for (auto &p : m_songs) {
     //     qDebug() << QString("[MusicStorage] Song with title of %1 has a use count of: %2").arg(p->title()).arg(p.use_count());
     // }
-    QStringList files = QFileDialog::getOpenFileNames(
-        parent,
-        tr("Open Audio Files"),
-        QDir::homePath(),
-        tr(
-            "All Audio Files (*.mp3 *.ogg *.oga *.opus *.flac *.wav *.aiff *.aif *.aac *.m4a *.mp4 *.wma *.wv *.ape *.mpc *.spx *.tta *.dsf *.dff *.ac3 *.dts);;"
-            "MP3 (*.mp3);;"
-            "OGG Vorbis (*.ogg *.oga);;"
-            "Opus (*.opus);;"
-            "FLAC (*.flac);;"
-            "WAV (*.wav *.aiff *.aif);;"
-            "AAC / M4A (*.aac *.m4a *.mp4);;"
-            "WMA (*.wma);;"
-            "TrueAudio (*.tta);;"
-            "DSD (*.dsf *.dff);;"
-            "AC3 / DTS (*.ac3 *.dts);;"
-            "All Files (*)"
-            )
-        );
+    if (files.empty()) {
+    files = QFileDialog::getOpenFileNames(
+            parent,
+            tr("Open Audio Files"),
+            QDir::homePath(),
+            tr(
+                "All Audio Files (*.mp3 *.ogg *.oga *.opus *.flac *.wav *.aiff *.aif *.aac *.m4a *.mp4 *.wma *.wv *.ape *.mpc *.spx *.tta *.dsf *.dff *.ac3 *.dts);;"
+                "MP3 (*.mp3);;"
+                "OGG Vorbis (*.ogg *.oga);;"
+                "Opus (*.opus);;"
+                "FLAC (*.flac);;"
+                "WAV (*.wav *.aiff *.aif);;"
+                "AAC / M4A (*.aac *.m4a *.mp4);;"
+                "WMA (*.wma);;"
+                "TrueAudio (*.tta);;"
+                "DSD (*.dsf *.dff);;"
+                "AC3 / DTS (*.ac3 *.dts);;"
+                "All Files (*)"
+                )
+            );
+    }
     qDebug() << QString("[MusicStorage] Importing %1 files").arg(files.count());
     QQueue<QString> queue;
     for (const auto &f : std::as_const(files))
@@ -224,7 +227,7 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QWidget *parent)
 
     for(auto &file : m_addedFiles) {
         auto info = QFileInfo(file);
-        auto hash = QString("local%1").arg(qHash(info.baseName()));
+        auto hash = QString("local%1_%2").arg(qHash(info.baseName())).arg(QRandomGenerator::global()->bounded(16384)); //TODO: This needs to be improved.
         auto newDir = QDir(m_musicDir.absoluteFilePath(hash));
 
         player.setSource(QUrl::fromLocalFile(oldDir.absoluteFilePath(info.fileName())));

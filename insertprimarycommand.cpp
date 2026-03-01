@@ -1,7 +1,7 @@
 #include "insertprimarycommand.h"
 #include "listitem.h"
 
-InsertPrimaryCommand::InsertPrimaryCommand(QListView *view, PrimaryListModel *model, const QString &title, bool type, int row): m_view(view), m_model(model), m_title(title), m_type(type), m_row(row), m_edit(true) {}
+InsertPrimaryCommand::InsertPrimaryCommand(QListView *view, PrimaryListModel *model, const QString &title, bool type, int row, bool edit, QUndoCommand *parent): QUndoCommand(parent), m_view(view), m_model(model), m_title(title), m_type(type), m_row(row), m_edit(edit) {}
 
 void InsertPrimaryCommand::undo() {
     m_model->removeRow(m_row);

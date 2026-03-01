@@ -89,6 +89,7 @@ private:
     void musicMismatch(bool oldExists, const QDir &oldDir);
     void songUnselected();
     void setInsertGroupBox();
+    void importDirectory(int type);
 
 protected:
     void closeEvent(QCloseEvent *event) override;

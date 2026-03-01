@@ -423,9 +423,20 @@
     <property name="title">
      <string>Edit</string>
     </property>
+    <widget class="QMenu" name="menuImport_directory">
+     <property name="title">
+      <string>Import directory</string>
+     </property>
+     <addaction name="actionCD1"/>
+     <addaction name="actionCD2"/>
+     <addaction name="actionCD3"/>
+     <addaction name="actionRadio"/>
+     <addaction name="actionCustom"/>
+    </widget>
     <addaction name="actionCopy"/>
     <addaction name="actionCut"/>
     <addaction name="actionPaste"/>
+    <addaction name="menuImport_directory"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -522,6 +533,31 @@
   <action name="actionSetDirsDefault">
    <property name="text">
     <string>Change everything to game directory</string>
+   </property>
+  </action>
+  <action name="actionCD1">
+   <property name="text">
+    <string>CD1</string>
+   </property>
+  </action>
+  <action name="actionCD2">
+   <property name="text">
+    <string>CD2</string>
+   </property>
+  </action>
+  <action name="actionCD3">
+   <property name="text">
+    <string>CD3</string>
+   </property>
+  </action>
+  <action name="actionRadio">
+   <property name="text">
+    <string>Radio</string>
+   </property>
+  </action>
+  <action name="actionCustom">
+   <property name="text">
+    <string>Custom</string>
    </property>
   </action>
  </widget>

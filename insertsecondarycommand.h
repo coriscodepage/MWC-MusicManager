@@ -7,7 +7,7 @@
 class InsertSecondaryCommand : public QUndoCommand
 {
 public:
-    InsertSecondaryCommand(QListView *view, int row);
+    InsertSecondaryCommand(QListView *view, int row, QUndoCommand *parent = nullptr);
     void undo() override;
     void redo() override;
 

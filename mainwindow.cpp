@@ -16,6 +16,7 @@
 #include <qmimedata.h>
 #include <QMessageBox>
 #include <QImageReader>
+#include <QSignalMapper>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -66,6 +67,14 @@ MainWindow::MainWindow(QWidget *parent)
         settings.remove("musicdir");
         showInfoBox(tr("Save and restart to set the locations."));
     });
+
+    QSignalMapper *signalMapper = new QSignalMapper(this);
+    int i = 0;
+    for (QAction *action : {ui->actionCD1, ui->actionCD2, ui->actionCD3, ui->actionRadio, ui->actionCustom}) {
+        connect(action, &QAction::triggered, signalMapper, qOverload<>(&QSignalMapper::map));
+        signalMapper->setMapping(action, i++);
+    }
+    connect(signalMapper, &QSignalMapper::mappedInt, this, &MainWindow::importDirectory);
 
     connect(ui->listView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handlePrimaryListSelectionChanged);
     connect(ui->listItemView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handleSecondaryListSelectionChanged);
@@ -853,4 +862,94 @@ void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir) {
         exit(EXIT_FAILURE);
     }
     m_musicStore->setSongs(songsShared);
+}
+
+void MainWindow::importDirectory(int type) {
+    QDir directory;
+    bool listType = true;
+    QStringList names {tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
+
+    switch (type) {
+    case 0:
+        directory = m_gameDir;
+        if (!directory.cd("CD1")) {
+            qWarning() << "[MainWindow] Can't cd to requested directory";
+            return;
+        }
+        break;
+    case 1:
+        directory = m_gameDir;
+        if (!directory.cd("CD2")) {
+            qWarning() << "[MainWindow] Can't cd to requested directory";
+            return;
+        }
+        break;
+    case 2:
+        directory = m_gameDir;
+        if (!directory.cd("CD3")) {
+            qWarning() << "[MainWindow] Can't cd to requested directory";
+            return;
+        }
+        break;
+    case 3:
+        directory = m_gameDir;
+        if (!directory.cd("Radio")) {
+            qWarning() << "[MainWindow] Can't cd to requested directory";
+            return;
+        }
+        listType = false;
+        break;
+    case 4:
+        directory = getDir(tr("Select directory for import"), QDir::homePath());;
+        names[4] = directory.dirName().isEmpty() ? names.at(4) : directory.dirName();
+        break;
+    }
+
+
+
+    QUndoCommand *macro = new QUndoCommand(tr("Import directory"));
+    new InsertPrimaryCommand(ui->listView, m_primarymodel, names.at(type), listType, m_primarymodel->rowCount(), false, macro);
+    new InsertSecondaryCommand(ui->listItemView, 0, macro);
+    m_undoStack->push(macro);
+
+    auto info = directory.entryInfoList();
+    QStringList list;
+    if (info.empty()) {
+        showWarningBox(tr("Nothing to import. Directory is empty"));
+        return;
+    }
+
+    for (const auto &i : std::as_const(info)) {
+        list << i.absoluteFilePath();
+    }
+
+    const auto songList = m_musicStore->importMusic(this, list);
+    if (songList.isEmpty()) {
+        qWarning() << "[MainWindow] Import failed or cancelled";
+        return;
+    }
+
+    const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
+    if (indexes.isEmpty()) {
+        qWarning() << "[MainWindow] No selection to apply the import to";
+        return;
+    }
+
+    const QModelIndex selection = indexes.constFirst();
+    const QModelIndex index = m_secondarymodel->index(selection.row());
+    auto *listItem = m_secondarymodel->getItem();
+
+    listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
+    listItem->getItem(index.row())->setSong(songList.constFirst());
+
+    for (int i = 1; i < songList.count(); ++i) {
+        auto item = MusicItem(songList.at(i)->title(), songList.at(i));
+        m_secondarymodel->insertRowInternal(index.row() + i, item);
+    }
+
+    setWindowModified(true);
+    m_stickyModified = true;
+    ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
+    updateItemCountLabel();
+    songUpdated(index);
 }

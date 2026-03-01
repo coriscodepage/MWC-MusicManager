@@ -1,6 +1,6 @@
 #include "insertsecondarycommand.h"
 
-InsertSecondaryCommand::InsertSecondaryCommand(QListView *view, int row): m_view(view), m_row(row) {}
+InsertSecondaryCommand::InsertSecondaryCommand(QListView *view, int row, QUndoCommand *parent): QUndoCommand(parent), m_view(view), m_row(row) {}
 
 void InsertSecondaryCommand::undo() {
     auto model = m_view->model();
