@@ -870,28 +870,28 @@ void MainWindow::importDirectory(int type) {
     QStringList names {tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
 
     switch (type) {
-    case 0:
+    case GameManager::CD1:
         directory = m_gameDir;
         if (!directory.cd("CD1")) {
             qWarning() << "[MainWindow] Can't cd to requested directory";
             return;
         }
         break;
-    case 1:
+    case GameManager::CD2:
         directory = m_gameDir;
         if (!directory.cd("CD2")) {
             qWarning() << "[MainWindow] Can't cd to requested directory";
             return;
         }
         break;
-    case 2:
+    case GameManager::CD3:
         directory = m_gameDir;
         if (!directory.cd("CD3")) {
             qWarning() << "[MainWindow] Can't cd to requested directory";
             return;
         }
         break;
-    case 3:
+    case GameManager::RADIO:
         directory = m_gameDir;
         if (!directory.cd("Radio")) {
             qWarning() << "[MainWindow] Can't cd to requested directory";
