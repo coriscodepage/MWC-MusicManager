@@ -24,10 +24,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     qDebug() << "Supported formats:" << QImageReader::supportedImageFormats();
-    m_mediaPlayer = new QMediaPlayer(this);
-    QAudioOutput* audioOutput = new QAudioOutput(this);
-    audioOutput->setVolume(50);
-    m_mediaPlayer->setAudioOutput(audioOutput);
+
     m_undoStack = new QUndoStack(this);
     m_musicStore = new MusicStorage(this);
     prepareDirectories();
@@ -35,6 +32,7 @@ MainWindow::MainWindow(QWidget *parent)
     qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     m_primarymodel = new PrimaryListModel(this, m_musicStore, m_undoStack);
     m_secondarymodel = new SecondaryListModel(this, m_musicStore, m_undoStack);
+    m_mediaPlayer = new MediaPlayer();
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
     ui->listView->setItemDelegate(new PrimaryListDelegate());
@@ -108,6 +106,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
 
+    connect(ui->playPlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::play);
+    connect(ui->stopPlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::stop);
+    connect(m_mediaPlayer, &MediaPlayer::labelChanged, ui->labelPlayer, &QLabel::setText);
+    connect(ui->playSong, &QPushButton::clicked, this, [this](){
+        auto selections = ui->listItemView->selectionModel()->selection().indexes();
+        if (selections.empty()) return;
+        auto selection = selections.first();
+        auto song = m_secondarymodel->getSong(selection.row());
+        m_mediaPlayer->changeSong(song);
+        m_mediaPlayer->play();
+    });
+
+
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
         if (!m_stickyModified)
             setWindowModified(!clean);
@@ -177,7 +188,7 @@ void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, con
 void MainWindow::setInsertGroupBox() {
     ui->insertGroupBox->setEnabled(true);
     auto inserted = m_gameManager->getAllInserted();
-    auto current = m_secondarymodel->getInsertHash();
+    auto current = m_secondarymodel->getItem()->getInsertHash();
     ui->insertCD1->setStyleSheet("");
     ui->insertCD2->setStyleSheet("");
     ui->insertCD3->setStyleSheet("");
@@ -540,58 +551,54 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
 void MainWindow::songSelected(const QModelIndex &index) {
     ui->downloadControls->setEnabled(true);
-    auto pixmap = m_secondarymodel->getPixmap(index.row());
+    auto pixmapPath = m_secondarymodel->getSong(index.row())->pixmapPath();
+    static const QPixmap empty(":/defaults/no-image.webp");
+    QPixmap pixmap = empty;
+    if (!pixmapPath.isEmpty()) {
+        pixmap = QPixmap(pixmapPath);
+    }
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText(m_secondarymodel->getTitle(index.row()));
-    ui->artistLabel->setText(m_secondarymodel->getArtist(index.row()));
+    ui->songLabel->setText(m_secondarymodel->getSong(index.row())->title());
+    ui->artistLabel->setText(m_secondarymodel->getSong(index.row())->artist());
     auto item = m_secondarymodel->getItem();
     auto music = item ? item->getItem(index.row()) : nullptr;
     if (music && music->hasSong()) {
-        ui->play->setEnabled(true);
-        ui->stop->setEnabled(true);
+        ui->playSong->setEnabled(true);
+        // ui->stop->setEnabled(true);
     } else {
-        ui->play->setEnabled(false);
-        ui->stop->setEnabled(false);
+        ui->playSong->setEnabled(false);
+        // ui->stop->setEnabled(false);
     }
 }
 
 void MainWindow::songUnselected() {
     ui->downloadControls->setEnabled(false);
-    auto pixmap = m_secondarymodel->getPixmap(-1);
+    static QPixmap pixmap(":/defaults/no-image.webp");
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
     ui->songLabel->setText("");
     ui->artistLabel->setText("");
-    ui->play->setEnabled(false);
-    ui->stop->setEnabled(false);
+    ui->playSong->setEnabled(false);
+    // ui->stop->setEnabled(false);
 }
 
 void MainWindow::songUpdated(const QModelIndex &index) {
     setWindowModified(true);
-    auto pixmap = m_secondarymodel->getPixmap(index.row());
+    auto pixmapPath = m_secondarymodel->getSong(index.row())->pixmapPath();
+    static const QPixmap empty(":/defaults/no-image.webp");
+    QPixmap pixmap = empty;
+    if (!pixmapPath.isEmpty()) {
+        pixmap = QPixmap(pixmapPath);
+    }
     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
     ui->songArt->setPixmap(pixmap);
-    QString title = m_secondarymodel->getTitle(index.row());
-    QString artist = m_secondarymodel->getArtist(index.row());
+    QString title = m_secondarymodel->getSong(index.row())->title();
+    QString artist = m_secondarymodel->getSong(index.row())->artist();
     ui->songLabel->setText(title);
     ui->artistLabel->setText(artist);
-    ui->play->setEnabled(true);
-    ui->stop->setEnabled(true);
-}
-
-void MainWindow::on_play_clicked() {
-    auto selections = ui->listItemView->selectionModel()->selection().indexes();
-    if (selections.empty()) return;
-    auto selection = selections.first();
-    auto musicPath = m_secondarymodel->getSongPath(selection.row());
-    m_mediaPlayer->setSource(musicPath);
-    m_mediaPlayer->play();
-}
-
-
-void MainWindow::on_stop_clicked() {
-    m_mediaPlayer->stop();
+    ui->playSong->setEnabled(true);
+    // ui->stop->setEnabled(true);
 }
 
 void MainWindow::saveAppData() {
@@ -724,7 +731,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::on_insertCD1_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD1, m_secondarymodel->getInsertHash());
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD1, m_secondarymodel->getItem()->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD1")), 3000);
     setWindowModified(true);
     m_stickyModified = true;
@@ -734,7 +741,7 @@ void MainWindow::on_insertCD1_clicked()
 
 void MainWindow::on_insertCD2_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD2, m_secondarymodel->getInsertHash());
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD2, m_secondarymodel->getItem()->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD2")), 3000);
     setWindowModified(true);
     m_stickyModified = true;
@@ -743,7 +750,7 @@ void MainWindow::on_insertCD2_clicked()
 
 void MainWindow::on_insertCD3_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD3, m_secondarymodel->getInsertHash());
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD3, m_secondarymodel->getItem()->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD3")), 3000);
     setWindowModified(true);
     m_stickyModified = true;
@@ -752,7 +759,7 @@ void MainWindow::on_insertCD3_clicked()
 
 void MainWindow::on_insertRadio_clicked()
 {
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::RADIO, m_secondarymodel->getInsertHash());
+    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::RADIO, m_secondarymodel->getItem()->getInsertHash());
     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("Radio")), 3000);
     setWindowModified(true);
     m_stickyModified = true;

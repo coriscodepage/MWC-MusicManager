@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include "gamemanager.h"
+#include "mediaplayer.h"
 #include "musicstorage.h"
 #include "primarylistmodel.h"
 #include "secondarylistmodel.h"
@@ -45,10 +46,6 @@ private slots:
 
     void showListItemContextMenu(const QPoint &pos);
 
-    void on_play_clicked();
-
-    void on_stop_clicked();
-
     void on_insertCD1_clicked();
 
     void on_insertCD2_clicked();
@@ -64,7 +61,7 @@ private:
     Ui::MainWindow *ui;
     PrimaryListModel *m_primarymodel;
     SecondaryListModel *m_secondarymodel;
-    QMediaPlayer *m_mediaPlayer;
+    MediaPlayer *m_mediaPlayer;
     MusicStorage *m_musicStore;
     GameManager *m_gameManager;
     QDir m_gameDir;

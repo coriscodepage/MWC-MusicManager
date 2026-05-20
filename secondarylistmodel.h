@@ -26,24 +26,19 @@ public:
     bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
     bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
     bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) override;
+    void setField(int field, const QString &value, const QModelIndex &index) override;
+    QString getField(int field, const QModelIndex &index) override;
+
+    const MusicItem* getSong(int row);
     const QModelIndexList &copiedIndexes() const;
     ListItem *getItem();
     void setSource(ListItem *item);
-    void moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild);
-    QString getTitle(int index) const;
-    QString getArtist(int index) const;
-    QString getHash(int index) const;
-    QPixmap getPixmap(int index) const;
-    QString getSongPath(int index) const;
+    void moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild); // FIXME: Why in the ever loving God is this public?
     const QVector<MusicItem> &getSongs() const;
-    void setHash(const QString &hash, int index);
     bool insertRowInternal(int row, MusicItem &item);
-    void setField(int field, const QString &value, const QModelIndex &index) override;
-    QString getField(int field, const QModelIndex &index) override;
-    const QString getInsertHash() const;
 
 private:
-    ListItem *m_item = nullptr;
+    ListItem *m_list = nullptr;
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
     mutable QModelIndexList m_draggedIndexes;
