@@ -3,6 +3,8 @@
 
 #include <qdir.h>
 #include <qobject.h>
+
+struct MusicInfo;
 class MusicObject
 {
 public:
@@ -28,6 +30,7 @@ public:
     void setStoragePath(const QDir &path);
     void copyToNewStoragePath(const QDir &storagePath);
     void moveToNewStoragePath(const QDir &storagePath);
+    MusicInfo musicInfo() const;
     const QDir &storagePath() const;
     const QFileInfo &songName() const;
     const QFileInfo &thumbnailName() const;
@@ -46,7 +49,25 @@ private:
     QString m_url;
     bool m_valid;
     bool m_hasThumbnail;
-    bool m_makedForDeletion;
+    bool m_markedForDeletion;
+};
+
+struct MusicInfo {
+    QString title;
+    const int duration = 0;
+    const QString artist;
+    const QDir storagePath;
+    const QDir entryPath;
+    const QFileInfo songName;
+    const QString thumbnailPath;
+    const QString hash;
+    const QString url;
+    const bool valid = false;
+    const bool hasThumbnail = false;
+    const bool markedForDeletion = false;
+    MusicInfo(const QString title, int duration, const QString artist, const QDir storagePath, const QDir entryPath, const QFileInfo songName, const QString thumbnailPath, const QString hash, const QString url, bool valid, bool hasThumbnail, bool markedForDeletion)
+        :title(title), duration(duration), artist(artist), storagePath(storagePath), entryPath(entryPath), songName(songName), thumbnailPath(thumbnailPath), hash(hash), url(url), valid(valid), hasThumbnail(hasThumbnail), markedForDeletion(markedForDeletion) {}
+    MusicInfo() = default;
 };
 
 Q_DECLARE_METATYPE(MusicObject);

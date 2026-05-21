@@ -14,6 +14,15 @@ const QString &MusicItem::title() const {
     return m_title;
 }
 
+MusicInfo MusicItem::musicInfo() const {
+    if(m_song == nullptr) return MusicInfo();
+    auto info = m_song->musicInfo();
+    if (m_title.isEmpty()) {
+        info.title = m_song->title();
+    }
+    return info;
+}
+
 void MusicItem::setTitle(const QString &title) {
     m_title = title;
 }

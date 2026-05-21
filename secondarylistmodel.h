@@ -4,11 +4,11 @@
 #include "listitem.h"
 #include "musicitem.h"
 #include "musicstorage.h"
-#include "textfieldedit.h"
+#include "custommodeledit.h"
 #include <QAbstractListModel>
 #include <qundostack.h>
 
-class SecondaryListModel : public QAbstractListModel, public TextFieldEdit
+class SecondaryListModel : public QAbstractListModel, public CustomModelEdit
 {
 public:
     explicit SecondaryListModel(QObject *parent = nullptr, MusicStorage *musicStore = nullptr, QUndoStack *undoStack = nullptr);
@@ -41,9 +41,13 @@ private:
     ListItem *m_list = nullptr;
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
-    mutable QModelIndexList m_draggedIndexes;
+    mutable QModelIndexList m_draggedIndexes; // FIXME: WHAT WAS I THINKING?????
 
     void addItemAt(const MusicItem &item, int row);
+
+signals:
+    void selectionChanged(const QModelIndex &index);
+
 };
 
 #endif // SECONDARYLISTMODEL_H

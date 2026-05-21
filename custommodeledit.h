@@ -3,13 +3,13 @@
 
 #include <qabstractitemmodel.h>
 #include <qcontainerfwd.h>
-class TextFieldEdit
+class CustomModelEdit
 {
 public:
-    TextFieldEdit() = default;
+    CustomModelEdit() = default;
     virtual void setField(int field, const QString &value, const QModelIndex &index) = 0;
     virtual QString getField(int field, const QModelIndex &index) = 0;
-    virtual ~TextFieldEdit() = default;
+    virtual ~CustomModelEdit() = default;
 };
 
 #endif // TEXTFIELDEDIT_H

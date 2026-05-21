@@ -3,11 +3,11 @@
 
 #include "listitem.h"
 #include "musicstorage.h"
-#include "textfieldedit.h"
+#include "custommodeledit.h"
 #include <QStringListModel>
 #include <qundostack.h>
 
-class PrimaryListModel : public QAbstractListModel, public TextFieldEdit
+class PrimaryListModel : public QAbstractListModel, public CustomModelEdit
 {
     Q_OBJECT
 public:

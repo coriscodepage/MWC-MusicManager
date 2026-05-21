@@ -23,6 +23,9 @@ public slots:
     void stop();
 signals:
     void labelChanged(const QString& label);
+    void playState(bool state);
+    void pauseState(bool state);
+    void stopState(bool state);
 };
 
 #endif // MEDIAPLAYER_H

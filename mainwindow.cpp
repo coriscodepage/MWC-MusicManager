@@ -33,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_primarymodel = new PrimaryListModel(this, m_musicStore, m_undoStack);
     m_secondarymodel = new SecondaryListModel(this, m_musicStore, m_undoStack);
     m_mediaPlayer = new MediaPlayer();
+    m_selectionController = new SelectionController(m_primarymodel, m_secondarymodel, this);
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
     ui->listView->setItemDelegate(new PrimaryListDelegate());
@@ -74,25 +75,57 @@ MainWindow::MainWindow(QWidget *parent)
     }
     connect(signalMapper, &QSignalMapper::mappedInt, this, &MainWindow::importDirectory);
 
-    connect(ui->listView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handlePrimaryListSelectionChanged);
-    connect(ui->listItemView->selectionModel(), &QItemSelectionModel::currentRowChanged, this, &MainWindow::handleSecondaryListSelectionChanged);
-    connect(m_secondarymodel, &SecondaryListModel::dataChanged, this, &MainWindow::handleSecondaryListSelectionChanged);
+    connect(ui->listView->selectionModel(), &QItemSelectionModel::selectionChanged, m_selectionController, &SelectionController::handlePrimaryListSelectionChanged);
+    connect(ui->listItemView->selectionModel(), &QItemSelectionModel::selectionChanged, m_selectionController, &SelectionController::handleSecondaryListSelectionChanged);
+    connect(m_selectionController, &SelectionController::songListState, this, [this](bool state) {
+        ui->listItemView->setEnabled(state);
+        ui->newItem->setEnabled(state);
+        ui->deleteList->setEnabled(state);
+        if (!state) ui->insertGroupBox->setEnabled(state);
+        //songUnselected()
+    });
+    connect(m_selectionController, &SelectionController::songListMembersPresent, this, [this](bool state) {
+        ui->listItemView->setEnabled(state);
+        // if (state)
+        //     setInsertGroupBox();
+        // else
+        //     ui->insertGroupBox->setEnabled(state);
+        ui->newItem->setEnabled(state);
+        ui->deleteList->setEnabled(state);
+        // if (!state) songUnselected();
+        //     updateItemCountLabel();
+    });
+
+    connect(m_selectionController, &SelectionController::songSelected, this, [this](MusicInfo info, QPixmap pixmap){
+        ui->downloadControls->setEnabled(true);
+        pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
+        ui->songArt->setPixmap(pixmap);
+        ui->songLabel->setText(info.title);
+        ui->artistLabel->setText(info.artist);
+        if (info.valid) {
+            ui->playSong->setEnabled(true);
+            // ui->stop->setEnabled(true);
+        } else {
+            ui->playSong->setEnabled(false);
+            // ui->stop->setEnabled(false);
+        }
+    });
 
     connect(m_secondarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
         ui->downloadControls->setEnabled(m_secondarymodel->rowCount() > 0);
         updateItemCountLabel();
-    });
+    }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
     connect(m_primarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
         updateItemCountLabel();
         if(m_primarymodel->rowCount() == 0) {
             m_secondarymodel->setSource(nullptr);
-            handlePrimaryListSelectionChanged(QModelIndex(), QModelIndex());
+            // handlePrimaryListSelectionChanged(QModelIndex(), QModelIndex());
         }
-    });
+    }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
     connect(m_primarymodel, &PrimaryListModel::dataChanged, this, [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles) {
         if (roles.count() == 0) return;
         if (roles.constFirst() == Qt::EditRole) setWindowModified(true);
-    });
+    }); // FIXME: What does this even do?
 
     connect(m_primarymodel, &PrimaryListModel::typeChanged, this, &MainWindow::updateItemCountLabel);
 
@@ -106,9 +139,14 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
 
-    connect(ui->playPlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::play);
     connect(ui->stopPlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::stop);
+    connect(ui->pausePlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::pause);
+    connect(ui->playPlayer, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::play);
     connect(m_mediaPlayer, &MediaPlayer::labelChanged, ui->labelPlayer, &QLabel::setText);
+    connect(m_mediaPlayer, &MediaPlayer::stopState, ui->stopPlayer, &QPushButton::setEnabled);
+    connect(m_mediaPlayer, &MediaPlayer::pauseState, ui->pausePlayer, &QPushButton::setEnabled);
+    connect(m_mediaPlayer, &MediaPlayer::playState, ui->playPlayer, &QPushButton::setEnabled);
+
     connect(ui->playSong, &QPushButton::clicked, this, [this](){
         auto selections = ui->listItemView->selectionModel()->selection().indexes();
         if (selections.empty()) return;
@@ -136,6 +174,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listItemView->setDragEnabled(true);
     ui->listItemView->setAcceptDrops(true);
     ui->listItemView->setDropIndicatorShown(true);
+    ui->listItemView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->listItemView->setDefaultDropAction(Qt::MoveAction);
 
     ui->listView->setDragEnabled(true);
@@ -160,30 +199,7 @@ MainWindow::~MainWindow()
 }
 
 
-void MainWindow::handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
-    Q_UNUSED(previous);
-    if (!index.isValid()) {
-        ui->listItemView->setEnabled(false);
-        ui->insertGroupBox->setEnabled(false);
-        ui->newItem->setEnabled(false);
-        ui->deleteList->setEnabled(false);
-        songUnselected();
-        return;
-    }
-    qDebug() << QString("[MainWindow] Primary: {%1}").arg(index.row());
-    ListItem &data = m_primarymodel->getItem(index);
-    m_secondarymodel->setSource(&data);
-    bool state = m_primarymodel->rowCount() > 0;
-    ui->listItemView->setEnabled(state);
-    if (state)
-        setInsertGroupBox();
-    else
-        ui->insertGroupBox->setEnabled(state);
-    ui->newItem->setEnabled(state);
-    ui->deleteList->setEnabled(state);
-    if (!state) songUnselected();
-    updateItemCountLabel();
-}
+
 
 void MainWindow::setInsertGroupBox() {
     ui->insertGroupBox->setEnabled(true);
@@ -211,16 +227,7 @@ void MainWindow::setInsertGroupBox() {
     }
 }
 
-void MainWindow::handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous) {
-    Q_UNUSED(previous);
-    if (!index.isValid()) {
-        songUnselected();
-        return;
-    }
-    qDebug() << QString("[MainWindow] Secondary: {%1}").arg(index.row());
-    updateItemCountLabel();
-    songSelected(index);
-}
+
 
 void MainWindow::on_addCD_clicked() {
     InsertPrimaryCommand *cmd = new InsertPrimaryCommand(ui->listView, m_primarymodel, "New list", true, m_primarymodel->rowCount());
@@ -547,40 +554,6 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
         PasteCommand *cmd = new PasteCommand(ui->listItemView, binary, format, firstRow);
         m_undoStack->push(cmd);
     }
-}
-
-void MainWindow::songSelected(const QModelIndex &index) {
-    ui->downloadControls->setEnabled(true);
-    auto pixmapPath = m_secondarymodel->getSong(index.row())->pixmapPath();
-    static const QPixmap empty(":/defaults/no-image.webp");
-    QPixmap pixmap = empty;
-    if (!pixmapPath.isEmpty()) {
-        pixmap = QPixmap(pixmapPath);
-    }
-    pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
-    ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText(m_secondarymodel->getSong(index.row())->title());
-    ui->artistLabel->setText(m_secondarymodel->getSong(index.row())->artist());
-    auto item = m_secondarymodel->getItem();
-    auto music = item ? item->getItem(index.row()) : nullptr;
-    if (music && music->hasSong()) {
-        ui->playSong->setEnabled(true);
-        // ui->stop->setEnabled(true);
-    } else {
-        ui->playSong->setEnabled(false);
-        // ui->stop->setEnabled(false);
-    }
-}
-
-void MainWindow::songUnselected() {
-    ui->downloadControls->setEnabled(false);
-    static QPixmap pixmap(":/defaults/no-image.webp");
-    pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
-    ui->songArt->setPixmap(pixmap);
-    ui->songLabel->setText("");
-    ui->artistLabel->setText("");
-    ui->playSong->setEnabled(false);
-    // ui->stop->setEnabled(false);
 }
 
 void MainWindow::songUpdated(const QModelIndex &index) {

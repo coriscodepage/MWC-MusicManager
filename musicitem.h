@@ -21,7 +21,7 @@ public:
     void setArtist(const QString &artist);
     bool hasThumbnail();
     bool hasSong();
-
+    MusicInfo musicInfo() const;
     friend QDataStream &operator<<(QDataStream &out, const MusicItem &item);
     friend QDataStream &operator>>(QDataStream &in, MusicItem &item);
 private:

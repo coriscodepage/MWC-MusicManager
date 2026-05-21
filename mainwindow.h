@@ -6,6 +6,7 @@
 #include "musicstorage.h"
 #include "primarylistmodel.h"
 #include "secondarylistmodel.h"
+#include "selectioncontroller.h"
 #include <QMainWindow>
 #include <QDir>
 #include <QMediaPlayer>
@@ -28,8 +29,6 @@ public:
 
 private slots:
     void on_addCD_clicked();
-    void handlePrimaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
-    void handleSecondaryListSelectionChanged(const QModelIndex &index, const QModelIndex &previous);
     void updateItemCountLabel();
     void saveAppData();
     void loadAppData();
@@ -64,9 +63,11 @@ private:
     MediaPlayer *m_mediaPlayer;
     MusicStorage *m_musicStore;
     GameManager *m_gameManager;
+    SelectionController *m_selectionController;
     QDir m_gameDir;
     QFileInfo m_appSave;
     QUndoStack *m_undoStack;
+
     bool m_stickyModified;
     void prepareDirectories();
     void songSelected(const QModelIndex &index);
@@ -84,7 +85,6 @@ private:
     bool setSaveFile(bool exp, bool open = true);
     void setUiEnabled(bool enabled);
     void musicMismatch(bool oldExists, const QDir &oldDir);
-    void songUnselected();
     void setInsertGroupBox();
     void importDirectory(int type);
 

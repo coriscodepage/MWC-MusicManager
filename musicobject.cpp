@@ -1,7 +1,7 @@
 #include "musicobject.h"
 
 MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &storagePath, const QDir &entryPath, const QString &hash, const QDir &checkPath, const QString &url): m_title(title), m_duration(duration),
-    m_artist(artist), m_storagePath(storagePath), m_entryPath(entryPath), m_hash(hash), m_hasThumbnail(true), m_url(url), m_makedForDeletion(false)
+    m_artist(artist), m_storagePath(storagePath), m_entryPath(entryPath), m_hash(hash), m_hasThumbnail(true), m_url(url), m_markedForDeletion(false)
 {
     QDir actualCheckPath = m_storagePath.absoluteFilePath(entryPath.path());
     if (checkPath != QDir())
@@ -51,7 +51,7 @@ MusicObject::MusicObject(const QString &title, int duration, const QString &arti
 
 MusicObject::MusicObject(const QString &title, int duration, const QString &artist, const QDir &entryPath, const QString &hash, bool isValid,
     bool hasThumbnail, const QFileInfo &thumbnailName, const QFileInfo &songName, const QString &url) : m_title(title), m_duration(duration), m_artist(artist),
-    m_entryPath(entryPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailName(thumbnailName), m_songName(songName), m_url(url), m_makedForDeletion(false) {}
+    m_entryPath(entryPath), m_hash(hash), m_valid(isValid), m_hasThumbnail(hasThumbnail), m_thumbnailName(thumbnailName), m_songName(songName), m_url(url), m_markedForDeletion(false) {}
 
 void MusicObject::setStoragePath(const QDir &path) {
     m_storagePath = path;
@@ -112,15 +112,15 @@ void MusicObject::deleteFromDisk() {
 }
 
 void MusicObject::markForDeletion() {
-    m_makedForDeletion = true;
+    m_markedForDeletion = true;
 }
 
 void MusicObject::unmarkForDeletion() {
-    m_makedForDeletion = false;
+    m_markedForDeletion = false;
 }
 
 bool MusicObject::isForDeletion() {
-    return m_makedForDeletion;
+    return m_markedForDeletion;
 }
 
 const QFileInfo &MusicObject::songName() const {
@@ -129,6 +129,10 @@ const QFileInfo &MusicObject::songName() const {
 
 const QFileInfo &MusicObject::thumbnailName() const {
     return m_thumbnailName;
+}
+
+MusicInfo MusicObject::musicInfo() const {
+    return MusicInfo(m_title, m_duration, m_artist, m_storagePath, m_entryPath, m_songName, thumbnailPath(), m_hash, m_url, m_valid, m_hasThumbnail, m_markedForDeletion);
 }
 
 void MusicObject::copyToNewStoragePath(const QDir &storagePath) {
