@@ -1,8 +1,8 @@
 #include "mediaplayer.h"
 #include <qaudiooutput.h>
 
-MediaPlayer::MediaPlayer(QObject *parent)
-    : QObject{parent}, m_currentSong(nullptr)
+MediaPlayer::MediaPlayer(const SelectionState *selectionState, QObject *parent)
+    : QObject{parent}, m_selectionState(selectionState), m_currentSong(nullptr)
 {
     m_mediaPlayer = new QMediaPlayer(this);
     QAudioOutput* audioOutput = new QAudioOutput(this);
@@ -17,7 +17,8 @@ MediaPlayer::MediaPlayer(QObject *parent)
     });
 }
 
-void MediaPlayer::changeSong(const MusicItem *song) {
+void MediaPlayer::changeSong() {
+    const auto song = m_selectionState->currentSong();
     if (!song) return;
     m_currentSong = song;
     const auto path = m_currentSong->songPath();
@@ -25,6 +26,7 @@ void MediaPlayer::changeSong(const MusicItem *song) {
     if (path.isEmpty()) return;
     m_mediaPlayer->setSource(QUrl::fromLocalFile(path));
     emit labelChanged(title);
+    play();
 }
 void MediaPlayer::play() {
     if (m_currentSong == nullptr) return;

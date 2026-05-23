@@ -1,15 +1,16 @@
 #include "selectioncontroller.h"
 #include <qpixmap.h>
 
-SelectionController::SelectionController(PrimaryListModel *listModel, SecondaryListModel *songModel, QObject *parent)
-    : QObject{parent}, m_listModel(listModel), m_songModel(songModel)
+SelectionController::SelectionController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *state, QObject *parent)
+    : QObject{parent}, m_listModel(listModel), m_songModel(songModel), m_selectionState(state)
 {}
 
 void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     Q_UNUSED(deselected);
     if (selected.isEmpty()) {
-        qDebug() << "[SelectionController] Empty selection.";
-        emit songListState(false);
+        qDebug() << "[SelectionController] Empty primary selection.";
+        m_selectionState->updateList(nullptr);
+        // emit SongListChanged({}, -1);
     }
 
     if (selected.length() == 1) {
@@ -17,10 +18,7 @@ void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection
         QModelIndex index = selected.indexes().constFirst();
         ListItem &data = m_listModel->getItem(index);
         m_songModel->setSource(&data);
-        bool state = m_listModel->rowCount() > 0;
-        emit songListState(true);
-        emit songListMembersPresent(state);
-        emit songSelected(MusicInfo(), resolveThumbnail(""));
+        m_selectionState->updateList(&data);
     } else {
         qDebug() << "[SelectionController] Multi selection.";
     }
@@ -29,28 +27,23 @@ void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection
 void SelectionController::handleSecondaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     Q_UNUSED(deselected);
     if (selected.isEmpty()) {
-        qDebug() << "[SelectionController] Empty selection.";
-        emit songListState(false);
+        qDebug() << "[SelectionController] Empty secondary selection.";
+        m_selectionState->updateState(selected, {});
     }
-
     if (selected.length() == 1) {
         qDebug() << QString("[SelectionController] Secondary: {%1}").arg(selected.indexes().constFirst().row());
-        QModelIndex index = selected.indexes().constFirst();
-        const auto song = m_songModel->getSong(index.row());
-        const auto info = song->musicInfo();
-        auto pixmap = resolveThumbnail(info.thumbnailPath);
-        emit songSelected(info, pixmap);
-
     } else {
         qDebug() << "[SelectionController] Multi selection.";
     }
+
+    const auto indecies = selected.indexes();
+    QVector<const MusicItem *> resolved;
+    for (const auto &index : indecies) {
+        const auto song = m_songModel->getSong(index.row());
+        resolved.push_back(song);
+    }
+
+    m_selectionState->updateState(selected, resolved);
+
 }
 
-QPixmap SelectionController::resolveThumbnail(const QString &path) {
-    static const QPixmap empty(":/defaults/no-image.webp");
-    QPixmap pixmap = empty;
-    if (!path.isEmpty()) {
-        pixmap = QPixmap(path);
-    }
-    return pixmap;
-}

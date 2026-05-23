@@ -15,7 +15,7 @@ const QString &MusicItem::title() const {
 }
 
 MusicInfo MusicItem::musicInfo() const {
-    if(m_song == nullptr) return MusicInfo();
+    if(m_song == nullptr) return {};
     auto info = m_song->musicInfo();
     if (m_title.isEmpty()) {
         info.title = m_song->title();

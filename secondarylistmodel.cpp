@@ -1,11 +1,11 @@
 #include "secondarylistmodel.h"
 #include "edittitlecommand.h"
-#include "movesecondarycommand.h"
+#include "movecommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
 #include <qpixmap.h>
 
-SecondaryListModel::SecondaryListModel(QObject *parent, MusicStorage *musicStore, QUndoStack *undoStack)
+SecondaryListModel::SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent)
     : QAbstractListModel{parent}
     , m_musicStore(musicStore)
     , m_undoStack(undoStack)
@@ -183,16 +183,16 @@ bool SecondaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow
     if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
         return false;
 
-    QVector<MusicItem> movingItems;
+    QVector<QVariant> movingItems;
     for (int i = 0; i < count; ++i)
-        movingItems.append(m_list->getItems().at(sourceRow));
+        movingItems.append(QVariant::fromValue(m_list->getItems().at(sourceRow)));
 
-    MoveSecondaryCommand *cmd = new MoveSecondaryCommand(this, movingItems, sourceRow, count, destinationChild);
+    MoveCommand *cmd = new MoveCommand(this, movingItems, sourceRow, count, destinationChild);
     m_undoStack->push(cmd);
     return true;
 }
 
-void SecondaryListModel::moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild) {
+void SecondaryListModel::moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) {
     beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
 
     for (int i = 0; i < count; ++i)
@@ -201,8 +201,12 @@ void SecondaryListModel::moveInternal(const QVector<MusicItem> &movingItems, int
     int insertPos = destinationChild;
     if (destinationChild > sourceRow) insertPos -= count;
 
-    for (int i = 0; i < movingItems.size(); ++i)
-        m_list->getItems().insert(insertPos + i, movingItems[i]);
+    for (int i = 0; i < movingItems.size(); ++i) {
+        if (movingItems[i].canConvert<MusicItem>()) {
+            const auto &item = qvariant_cast<MusicItem>(movingItems[i]);
+            m_list->getItems().insert(insertPos + i, item);
+        }
+    }
     endMoveRows();
 }
 
@@ -290,4 +294,12 @@ QString SecondaryListModel::getField(int field, const QModelIndex &index) {
         break;
     }
     return {};
+}
+
+void SecondaryListModel::removeAt(int row) {
+    removeRow(row);
+}
+
+void SecondaryListModel::insertEmptyAt(int row, const QString &name, bool type) {
+    addItemAt(MusicItem(name, nullptr), row);
 }

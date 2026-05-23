@@ -1,13 +1,15 @@
 #include "primarylistmodel.h"
 #include "edittitlecommand.h"
-#include "moveprimarycommand.h"
+#include "movecommand.h"
 #include <QMimeData>
+#include <qcolor.h>
 #include <qitemselectionmodel.h>
 
-PrimaryListModel::PrimaryListModel(QObject *parent, MusicStorage *musicStore, QUndoStack *undoStack)
+PrimaryListModel::PrimaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, SelectionState *selectionState, QObject *parent)
     : QAbstractListModel{parent}
     , m_musicStore(musicStore)
     , m_undoStack(undoStack)
+    , m_selectionState(selectionState)
 {}
 
 int PrimaryListModel::rowCount(const QModelIndex &parent) const {
@@ -36,6 +38,12 @@ QVariant PrimaryListModel::data(const QModelIndex &index, int role) const {
         return m_items[index.row()].title();
     } else if (role == Qt::UserRole) {
         return m_items[index.row()].type() ? "CD" : "Radio";
+    } else if (role == Qt::ForegroundRole) {
+        if (m_selectionState) {
+            if (m_selectionState->inserted().contains(m_items.at(index.row()).getInsertHash())) {
+                return QColor(0, 128, 0);
+            }
+        }
     }
 
     return QVariant();
@@ -212,7 +220,7 @@ bool PrimaryListModel::insertRows(int row, int count, const QModelIndex &parent)
     qDebug() << QString("[PrimaryListModel] Inserting %1 row(s) starting from %2 in primary list").arg(count).arg(row);
     beginInsertRows(QModelIndex(), row, row + count - 1);
     for (int i = row; i < row + count; i++)
-        m_items.insert(i, ListItem("New list"));
+        m_items.insert(i, ListItem(tr("New list")));
     endInsertRows();
     return true;
 }
@@ -222,15 +230,15 @@ bool PrimaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, 
     Q_UNUSED(destinationParent)
     if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
         return false;
-    QVector<ListItem> movingItems;
+    QVector<QVariant> movingItems;
     for (int i = 0; i < count; ++i)
-        movingItems.append(m_items[sourceRow + i]);
-    MovePrimaryCommand *cmd = new MovePrimaryCommand(this, movingItems, sourceRow, count, destinationChild);
+        movingItems.append(QVariant::fromValue(m_items[sourceRow + i]));
+    MoveCommand *cmd = new MoveCommand(this, movingItems, sourceRow, count, destinationChild);
     m_undoStack->push(cmd);
     return true;
 }
 
-void PrimaryListModel::moveInternal(const QVector<ListItem> &movingItems, int sourceRow, int count, int destinationChild) {
+void PrimaryListModel::moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) {
     beginMoveRows(QModelIndex(), sourceRow, sourceRow + count - 1, QModelIndex(), destinationChild);
 
     for (int i = 0; i < count; ++i)
@@ -242,8 +250,12 @@ void PrimaryListModel::moveInternal(const QVector<ListItem> &movingItems, int so
 
     insertPos = qBound(0, insertPos, m_items.size());
 
-    for (int i = 0; i < movingItems.size(); ++i)
-        m_items.insert(insertPos + i, movingItems[i]);
+    for (int i = 0; i < movingItems.size(); ++i) {
+        if (movingItems[i].canConvert<ListItem>()) {
+            const auto &item = qvariant_cast<ListItem>(movingItems[i]);
+            m_items.insert(insertPos + i, item);
+        }
+    }
 
     endMoveRows();
 }
@@ -261,4 +273,11 @@ QString PrimaryListModel::getField(int field, const QModelIndex &index) {
     if (field == 0)
         return m_items.at(index.row()).title();
     return {};
+}
+
+void PrimaryListModel::removeAt(int row) {
+    removeRow(row);
+}
+void PrimaryListModel::insertEmptyAt(int row, const QString &name, bool type) {
+    addItem(ListItem(name, type), row);
 }

@@ -1,23 +1,22 @@
 #include "movecommand.h"
-#include "musicitem.h"
+#include <qabstractitemmodel.h>
 
-MoveCommand::MoveCommand(QAbstractListModel *model, const QMimeData *data, int row, int count, const QModelIndexList &draggedIndexes)
+MoveCommand::MoveCommand(CustomModelEdit *model, const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild)
     : m_model(model)
-    , m_data(data)
-    , m_draggedIndexes(draggedIndexes)
+    , m_movingItems(movingItems)
+    , m_sourceRow(sourceRow)
     , m_count(count)
-{
-    if (row < 0) m_row = model->rowCount();
-    else m_row = row;
+    , m_destinationChild(destinationChild)
+{}
+
+void MoveCommand::undo() {
+    if (m_destinationChild > m_sourceRow) {
+        m_model->moveInternal(m_movingItems, m_destinationChild - m_count, m_count, m_sourceRow);
+    } else {
+        m_model->moveInternal(m_movingItems, m_destinationChild, m_count, m_sourceRow + m_count);
+    }
 }
 
 void MoveCommand::redo() {
-    m_model->dropMimeData(m_data, Qt::CopyAction, m_row, 0, QModelIndex());
-}
-
-void MoveCommand::undo() {
-    int adjustedTo = m_row >= m_draggedIndexes.first().row() ? m_row + m_count : m_row;
-    m_model->removeRows(adjustedTo, m_count);
-    m_model->insertRows(m_draggedIndexes.first().row(), m_count);
-    m_model->dropMimeData(m_data, Qt::CopyAction, m_draggedIndexes.first().row(), 0, QModelIndex());
+    m_model->moveInternal(m_movingItems, m_sourceRow, m_count, m_destinationChild);
 }

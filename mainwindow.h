@@ -1,12 +1,15 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "gamemanager.h"
+#include "insertcontroller.h"
+#include "librarycontroller.h"
 #include "mediaplayer.h"
 #include "musicstorage.h"
 #include "primarylistmodel.h"
+#include "progressdialog.h"
 #include "secondarylistmodel.h"
 #include "selectioncontroller.h"
+#include "selectionstate.h"
 #include <QMainWindow>
 #include <QDir>
 #include <QMediaPlayer>
@@ -29,9 +32,9 @@ public:
 
 private slots:
     void on_addCD_clicked();
-    void updateItemCountLabel();
-    void saveAppData();
-    void loadAppData();
+    void updateItemCountLabel(const ListItem *data);
+    // void saveAppData();
+    // void loadAppData();
 
     void on_newItem_clicked();
 
@@ -45,15 +48,6 @@ private slots:
 
     void showListItemContextMenu(const QPoint &pos);
 
-    void on_insertCD1_clicked();
-
-    void on_insertCD2_clicked();
-
-    void on_insertCD3_clicked();
-
-    void on_insertRadio_clicked();
-
-
     void on_importItem_clicked();
 
 private:
@@ -62,16 +56,17 @@ private:
     SecondaryListModel *m_secondarymodel;
     MediaPlayer *m_mediaPlayer;
     MusicStorage *m_musicStore;
-    GameManager *m_gameManager;
     SelectionController *m_selectionController;
-    QDir m_gameDir;
-    QFileInfo m_appSave;
+    InsertController *m_insertController;
+    SelectionState *m_selectionState;
+    LibraryController *m_libraryController;
     QUndoStack *m_undoStack;
+    ProgressDialog *m_progressBar;
 
     bool m_stickyModified;
-    void prepareDirectories();
-    void songSelected(const QModelIndex &index);
-    void songUpdated(const QModelIndex &index);
+    void prepareDirectories(); // FIXME: This cannot be in main.
+    // void songSelected(const QModelIndex &index);
+    // void songUpdated(const QModelIndex &index);
     QListView *currentListView() const;
     void copy();
     void cut();
@@ -79,13 +74,13 @@ private:
     void showInfoBox(const QString &message);
     void showWarningBox(const QString &message);
     void showErrorBox(const QString &message);
-    QString getDir(const QString &message, const QString &defaultPath);
-    bool setMusicDir(bool exp);
-    bool setGameDir(bool exp);
+    QString getDir(LibraryController::DirType type);
+    // bool setMusicDir(bool exp);
+    // bool setGameDir(bool exp);
     bool setSaveFile(bool exp, bool open = true);
     void setUiEnabled(bool enabled);
     void musicMismatch(bool oldExists, const QDir &oldDir);
-    void setInsertGroupBox();
+    // void setInsertGroupBox();
     void importDirectory(int type);
 
 protected:

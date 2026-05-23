@@ -1,13 +1,14 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "cutcommand.h"
-#include "insertprimarycommand.h"
-#include "insertsecondarycommand.h"
+#include "insertcontroller.h"
+#include "insertcommand.h"
 #include "pastecommand.h"
 #include "primarylistdelegate.h"
 #include "primarylistmodel.h"
 #include "removecommand.h"
 #include "toggletypecommand.h"
+#include "filemanager.h"
 #include <QSettings>
 #include <QFileDialog>
 #include <QAudioOutput>
@@ -19,122 +20,174 @@
 #include <QSignalMapper>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
     qDebug() << "Supported formats:" << QImageReader::supportedImageFormats();
 
     m_undoStack = new QUndoStack(this);
     m_musicStore = new MusicStorage(this);
-    prepareDirectories();
-    m_gameManager = new GameManager(m_gameDir);
-    qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
-    m_primarymodel = new PrimaryListModel(this, m_musicStore, m_undoStack);
-    m_secondarymodel = new SecondaryListModel(this, m_musicStore, m_undoStack);
-    m_mediaPlayer = new MediaPlayer();
-    m_selectionController = new SelectionController(m_primarymodel, m_secondarymodel, this);
+    // prepareDirectories();
+    // qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
+    m_selectionState = new SelectionState();
+    m_primarymodel = new PrimaryListModel(m_musicStore, m_undoStack, m_selectionState, this);
+    m_secondarymodel = new SecondaryListModel(m_musicStore, m_undoStack, this);
+    m_mediaPlayer = new MediaPlayer(m_selectionState, this);
+    m_selectionController = new SelectionController(m_primarymodel, m_secondarymodel, m_selectionState, this);
+    m_insertController = new InsertController(m_selectionState, this);
+    m_libraryController = new LibraryController(m_primarymodel, m_secondarymodel, m_selectionState, m_musicStore, m_undoStack, this);
+    m_progressBar = new ProgressDialog(this);
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
     ui->listView->setItemDelegate(new PrimaryListDelegate());
 
-    connect(ui->actionSetGameDir, &QAction::triggered, this, [this]() {
-        bool res = setGameDir(true);
-        if(!m_gameDir.exists()) setUiEnabled(false);
-        QSettings settings("Kori", "Music Manager");
-        if (res) {
-            m_stickyModified = true;
-        }
+    connect(m_musicStore, &MusicStorage::progressUpdate, m_progressBar, &ProgressDialog::updateProgress);
 
 
-    });
-    connect(ui->actionOpen, &QAction::triggered, this, [this]() {setSaveFile(true);});
-    connect(ui->actionSaveAs, &QAction::triggered, this, [this]() {setSaveFile(true, false);});
+    // connect(ui->actionSetGameDir, &QAction::triggered, this, [this]() {
+    //     bool res = setGameDir(true);
+    //     if(!m_gameDir.exists()) setUiEnabled(false);
+    //     QSettings settings("Kori", "Music Manager");
+    //     if (res) {
+    //         m_stickyModified = true;
+    //     }
+    // });
+
+    // connect(ui->actionOpen, &QAction::triggered, this, [this]() {setSaveFile(true);});
+    // connect(ui->actionSaveAs, &QAction::triggered, this, [this]() {setSaveFile(true, false);});
     connect(ui->actionClose, &QAction::triggered, this, &QApplication::quit);
 
-    connect(ui->actionSetMusicDir, &QAction::triggered, this, [this]() {
-        QDir oldDir = m_musicStore->getMusicDir();
-        bool res = setMusicDir(true);
-        if(!m_musicStore->getMusicDir().exists()) setUiEnabled(false);
-        if(res) {
-            musicMismatch(true, oldDir);
-            m_stickyModified = true;
-        }
-    });
-    connect(ui->actionSetDirsDefault, &QAction::triggered, this, [this]() {
+    // connect(ui->actionSetMusicDir, &QAction::triggered, this, [this]() {
+    //     QDir oldDir = m_musicStore->getMusicDir();
+    //     bool res = setMusicDir(true);
+    //     if(!m_musicStore->getMusicDir().exists()) setUiEnabled(false);
+    //     if(res) {
+    //         musicMismatch(true, oldDir);
+    //         m_stickyModified = true;
+    //     }
+    // });
+
+    connect(ui->actionSetDirsDefault, &QAction::triggered, this, [this]()
+            {
         QSettings settings("Kori", "Music Manager");
         settings.remove("musicdir");
-        showInfoBox(tr("Save and restart to set the locations."));
-    });
+        showInfoBox(tr("Save and restart to set the locations.")); });
 
-    QSignalMapper *signalMapper = new QSignalMapper(this);
+    QSignalMapper *signalMapperImport = new QSignalMapper(this);
     int i = 0;
-    for (QAction *action : {ui->actionCD1, ui->actionCD2, ui->actionCD3, ui->actionRadio, ui->actionCustom}) {
-        connect(action, &QAction::triggered, signalMapper, qOverload<>(&QSignalMapper::map));
-        signalMapper->setMapping(action, i++);
+    for (QAction *action : {ui->actionCD1, ui->actionCD2, ui->actionCD3, ui->actionRadio, ui->actionCustom})
+    {
+        connect(action, &QAction::triggered, signalMapperImport, qOverload<>(&QSignalMapper::map));
+        signalMapperImport->setMapping(action, i++);
     }
-    connect(signalMapper, &QSignalMapper::mappedInt, this, &MainWindow::importDirectory);
+    connect(signalMapperImport, &QSignalMapper::mappedInt, m_libraryController, &LibraryController::importDirectory);
 
     connect(ui->listView->selectionModel(), &QItemSelectionModel::selectionChanged, m_selectionController, &SelectionController::handlePrimaryListSelectionChanged);
     connect(ui->listItemView->selectionModel(), &QItemSelectionModel::selectionChanged, m_selectionController, &SelectionController::handleSecondaryListSelectionChanged);
-    connect(m_selectionController, &SelectionController::songListState, this, [this](bool state) {
-        ui->listItemView->setEnabled(state);
-        ui->newItem->setEnabled(state);
-        ui->deleteList->setEnabled(state);
-        if (!state) ui->insertGroupBox->setEnabled(state);
-        //songUnselected()
-    });
-    connect(m_selectionController, &SelectionController::songListMembersPresent, this, [this](bool state) {
-        ui->listItemView->setEnabled(state);
-        // if (state)
-        //     setInsertGroupBox();
-        // else
-        //     ui->insertGroupBox->setEnabled(state);
-        ui->newItem->setEnabled(state);
-        ui->deleteList->setEnabled(state);
-        // if (!state) songUnselected();
-        //     updateItemCountLabel();
-    });
 
-    connect(m_selectionController, &SelectionController::songSelected, this, [this](MusicInfo info, QPixmap pixmap){
-        ui->downloadControls->setEnabled(true);
+    connect(m_selectionState, &SelectionState::songListChanged, this, [this](const ListItem *data) {
+        bool state = data;
+        ui->listItemView->setEnabled(state);
+        ui->newItem->setEnabled(state);
+        ui->deleteList->setEnabled(state);
+        bool listPopulated = data ? data->itemCount() > 0 : false;
+        ui->insertGroupBox->setEnabled(listPopulated);
+    });
+    connect(m_selectionState, &SelectionState::songListChanged, this, &MainWindow::updateItemCountLabel);
+
+    connect(m_selectionState, &SelectionState::songSelected, this, [this](MusicInfo *info, QPixmap pixmap) {
+        ui->downloadControls->setEnabled(info);
         pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
         ui->songArt->setPixmap(pixmap);
-        ui->songLabel->setText(info.title);
-        ui->artistLabel->setText(info.artist);
-        if (info.valid) {
+        if (!info) {
+            ui->songLabel->setText({});
+            ui->artistLabel->setText({});
+            ui->playSong->setEnabled(false);
+            return;
+        }
+        ui->songLabel->setText(info->title);
+        ui->artistLabel->setText(info->artist);
+        if (info->valid) {
             ui->playSong->setEnabled(true);
-            // ui->stop->setEnabled(true);
         } else {
             ui->playSong->setEnabled(false);
-            // ui->stop->setEnabled(false);
         }
     });
 
-    connect(m_secondarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
-        ui->downloadControls->setEnabled(m_secondarymodel->rowCount() > 0);
-        updateItemCountLabel();
-    }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
-    connect(m_primarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
-        updateItemCountLabel();
-        if(m_primarymodel->rowCount() == 0) {
-            m_secondarymodel->setSource(nullptr);
-            // handlePrimaryListSelectionChanged(QModelIndex(), QModelIndex());
-        }
-    }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
-    connect(m_primarymodel, &PrimaryListModel::dataChanged, this, [this](const QModelIndex &topLeft, const QModelIndex &bottomRight, const QList<int> &roles) {
-        if (roles.count() == 0) return;
-        if (roles.constFirst() == Qt::EditRole) setWindowModified(true);
-    }); // FIXME: What does this even do?
+    // connect(m_secondarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
+    //     ui->downloadControls->setEnabled(m_secondarymodel->rowCount() > 0);
+    //     // updateItemCountLabel();
+    // }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
+    // connect(m_primarymodel, &QAbstractItemModel::rowsRemoved, this, [this]() {
+    //     // updateItemCountLabel();
+    //     if(m_primarymodel->rowCount() == 0) {
+    //         m_secondarymodel->setSource(nullptr);
+    //         // handlePrimaryListSelectionChanged(QModelIndex(), QModelIndex());
+    //     }
+    // }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
+    connect(m_primarymodel, &QAbstractListModel::rowsRemoved, this, [this](const QModelIndex &parent, int first, int last)
+            {
+                int rowCount = m_primarymodel->rowCount();
+                if (rowCount == 0)
+                    return;
+                int newRow = qMin(first, rowCount - 1);
+                ui->listView->setCurrentIndex(m_primarymodel->index(newRow, 0, parent));
+                ui->listView->setFocus();
+                // if (roles.count() == 0) return; // FIXME: What does this even do?
+                // if (roles.constFirst() == Qt::EditRole) setWindowModified(true); // FIXME: What does this even do?
+            });
 
-    connect(m_primarymodel, &PrimaryListModel::typeChanged, this, &MainWindow::updateItemCountLabel);
+    connect(m_primarymodel, &QAbstractListModel::rowsInserted, this, [this](const QModelIndex &parent, int first, int last)
+            {
+        ui->listView->setCurrentIndex(m_primarymodel->index(first, 0 , parent));
+        ui->listView->setFocus(); });
+
+    connect(m_secondarymodel, &QAbstractListModel::rowsRemoved, this, [this](const QModelIndex &parent, int first, int last)
+            {
+        int rowCount = m_secondarymodel->rowCount();
+        if (rowCount == 0) return;
+        int newRow = qMin(first, rowCount - 1);
+        ui->listItemView->setCurrentIndex(m_secondarymodel->index(newRow, 0 , parent));
+        ui->listItemView->setFocus(); });
+
+    connect(m_secondarymodel, &QAbstractListModel::rowsInserted, this, [this](const QModelIndex &parent, int first, int last)
+            {
+        ui->listItemView->setCurrentIndex(m_secondarymodel->index(first, 0 , parent));
+        ui->listItemView->setFocus(); });
+
+    connect(m_insertController, &InsertController::insertedChanged, this, [this](InsertController::Drives drive, bool inserted)
+            {
+        switch(drive) {
+            case InsertController::CD1:
+                ui->insertCD1->setStyleSheet(inserted ? "font-weight: bold;" : "");
+            break;
+            case InsertController::CD2:
+                ui->insertCD2->setStyleSheet(inserted ? "font-weight: bold;" : "");
+            break;
+            case InsertController::CD3:
+                ui->insertCD3->setStyleSheet(inserted ? "font-weight: bold;" : "");
+            break;
+            case InsertController::RADIO:
+                ui->insertRadio->setStyleSheet(inserted ? "font-weight: bold;" : "");
+            break;
+        }
+    });
+
+    QSignalMapper *signalMapperInsert = new QSignalMapper(this);
+    i = 0;
+    for (QPushButton *button : {ui->insertCD1, ui->insertCD2, ui->insertCD3, ui->insertRadio})
+    {
+        connect(button, &QPushButton::clicked, signalMapperInsert, qOverload<>(&QSignalMapper::map));
+        signalMapperInsert->setMapping(button, i++);
+    }
+    connect(signalMapperInsert, &QSignalMapper::mappedInt, m_insertController, &InsertController::insert);
 
     ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listView, &QListView::customContextMenuRequested, this, &MainWindow::showListContextMenu);
     ui->listItemView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listItemView, &QListView::customContextMenuRequested, this, &MainWindow::showListItemContextMenu);
 
-    connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveAppData);
+    // connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveAppData);
     connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copy);
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
@@ -147,22 +200,43 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_mediaPlayer, &MediaPlayer::pauseState, ui->pausePlayer, &QPushButton::setEnabled);
     connect(m_mediaPlayer, &MediaPlayer::playState, ui->playPlayer, &QPushButton::setEnabled);
 
-    connect(ui->playSong, &QPushButton::clicked, this, [this](){
-        auto selections = ui->listItemView->selectionModel()->selection().indexes();
-        if (selections.empty()) return;
-        auto selection = selections.first();
-        auto song = m_secondarymodel->getSong(selection.row());
-        m_mediaPlayer->changeSong(song);
-        m_mediaPlayer->play();
-    });
+    connect(ui->playSong, &QPushButton::clicked, m_mediaPlayer, &MediaPlayer::changeSong);
 
+    connect(m_libraryController, &LibraryController::getDirectory, this, [this](LibraryController::DirType type)
+            {
+        const QString dir = getDir(type);
+        m_libraryController->handleDirecorySelected(type, dir); });
 
-    connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean) {
+    connect(m_libraryController, &LibraryController::directoryInvalid, this, [this](LibraryController::DirType type, bool retry)
+            {
+        switch (type) {
+        case LibraryController::GAME:
+            showWarningBox(tr("Select a valid game directory containing mysummercar.exe or mywintercar.exe."));
+            break;
+        case LibraryController::APP:
+            showWarningBox(tr("Select a valid save file or a directory where save.msc can be stored."));
+            break;
+        case LibraryController::MUSIC:
+            showWarningBox(tr("Select a valid music directory."));
+            break;
+        case LibraryController::CUSTOM:
+            showWarningBox(tr("Select a valid directory."));
+            break;
+        }
+
+        if (retry) {
+            const QString dir = getDir(type);
+            m_libraryController->handleDirecorySelected(type, dir);
+        } });
+
+    connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean)
+            {
         if (!m_stickyModified)
-            setWindowModified(!clean);
-    });
+            setWindowModified(!clean); });
+
     QAction *action_undo = m_undoStack->createUndoAction(this, tr("Undo"));
     QAction *action_redo = m_undoStack->createRedoAction(this, tr("Redo"));
+
     action_undo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
     action_undo->setIcon(QIcon::fromTheme("edit-undo"));
     action_redo->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Y));
@@ -182,15 +256,14 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listView->setDropIndicatorShown(true);
     ui->listView->setDefaultDropAction(Qt::MoveAction);
 
-    if(m_appSave.isFile())
-        loadAppData();
-    else if(QFile::exists(m_gameDir.absoluteFilePath("data.msc"))) {
-        qDebug() << "[MainWindow] Loading save from backup location";
-        m_appSave = QFileInfo(m_gameDir.absoluteFilePath("data.msc"));
-        loadAppData();
-    }
-
-    ui->downloadControls->setEnabled(false);
+    // if(m_appSave.isFile())
+    //     loadAppData();
+    // else if(QFile::exists(m_gameDir.absoluteFilePath("data.msc"))) {
+    //     qDebug() << "[MainWindow] Loading save from backup location";
+    //     m_appSave = QFileInfo(m_gameDir.absoluteFilePath("data.msc"));
+    //     loadAppData();
+    // }
+    m_libraryController->loadAppData();
 }
 
 MainWindow::~MainWindow()
@@ -198,255 +271,146 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+QString MainWindow::getDir(LibraryController::DirType type)
+{
+    QString message;
+    QString defaultPath;
 
-
-
-void MainWindow::setInsertGroupBox() {
-    ui->insertGroupBox->setEnabled(true);
-    auto inserted = m_gameManager->getAllInserted();
-    auto current = m_secondarymodel->getItem()->getInsertHash();
-    ui->insertCD1->setStyleSheet("");
-    ui->insertCD2->setStyleSheet("");
-    ui->insertCD3->setStyleSheet("");
-    ui->insertRadio->setStyleSheet("");
-    if (inserted.contains(current)) {
-        switch (inserted.indexOf(current)) {
-            case GameManager::CD1:
-                ui->insertCD1->setStyleSheet("font-weight: bold;");
-            break;
-            case GameManager::CD2:
-                ui->insertCD2->setStyleSheet("font-weight: bold;");
-            break;
-            case GameManager::CD3:
-                ui->insertCD3->setStyleSheet("font-weight: bold;");
-            break;
-            case GameManager::RADIO:
-                ui->insertRadio->setStyleSheet("font-weight: bold;");
-            break;
+    auto pickPath = [](
+                        const QDir &primary,
+                        const QDir &fallbackGame)
+    {
+        if (!primary.absolutePath().isEmpty() && primary.exists())
+        {
+            return primary.absolutePath();
         }
+        if (!fallbackGame.absolutePath().isEmpty() && fallbackGame.exists())
+        {
+            return fallbackGame.absolutePath();
+        }
+        return QDir::homePath();
+    };
+
+    const auto &fileManager = FileManager::getInstance();
+    switch (type)
+    {
+    case LibraryController::GAME:
+        message = tr("Select game directory");
+        defaultPath = pickPath(fileManager.getGamePath(), QDir());
+        break;
+    case LibraryController::APP:
+        message = tr("Select save file or directory");
+        defaultPath = pickPath(fileManager.getAppPath(), fileManager.getGamePath());
+        break;
+    case LibraryController::MUSIC:
+        message = tr("Select music directory");
+        defaultPath = pickPath(fileManager.getMusicPath(), fileManager.getGamePath());
+        break;
+    case LibraryController::CUSTOM:
+        message = tr("Select directory");
+        defaultPath = pickPath(QDir(), fileManager.getGamePath());
+        break;
     }
+
+    QString path = QFileDialog::getExistingDirectory(
+        this,
+        message,
+        defaultPath,
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+
+    return path;
 }
 
-
-
-void MainWindow::on_addCD_clicked() {
-    InsertPrimaryCommand *cmd = new InsertPrimaryCommand(ui->listView, m_primarymodel, "New list", true, m_primarymodel->rowCount());
+void MainWindow::on_addCD_clicked()
+{
+    InsertCommand *cmd = new InsertCommand(m_primarymodel, tr("New list"), true, m_primarymodel->rowCount());
     m_undoStack->push(cmd);
-    ui->listView->setFocus();
 }
 
-
-void MainWindow::on_newItem_clicked() {
-    InsertSecondaryCommand *cmd = new InsertSecondaryCommand(ui->listItemView, m_secondarymodel->rowCount());
+void MainWindow::on_newItem_clicked()
+{
+    InsertCommand *cmd = new InsertCommand(m_secondarymodel, tr("New song"), true, m_secondarymodel->rowCount());
     m_undoStack->push(cmd);
-    ui->listItemView->setFocus();
 }
 
-
-void MainWindow::on_deleteList_clicked() {
-    QUndoCommand *macro = new QUndoCommand("Remove List");
+void MainWindow::on_deleteList_clicked()
+{
+    QUndoCommand *macro = new QUndoCommand(tr("Remove List"));
     auto indexes = ui->listView->selectionModel()->selectedIndexes();
 
-    for (const QModelIndex &index : std::as_const(indexes)) {
+    for (const QModelIndex &index : std::as_const(indexes))
+    {
         new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
     }
     m_undoStack->push(macro);
     ui->listView->setFocus();
     if (m_primarymodel->rowCount() > 0)
         ui->listView->selectionModel()->setCurrentIndex(m_primarymodel->index(indexes.constFirst().row() - 1, 0), QItemSelectionModel::ClearAndSelect);
-
 }
 
-
-void MainWindow::on_downloadItem_clicked() {
-
-    const auto songList = m_musicStore->downloadMusic(this);
-    if (songList.isEmpty()) {
+void MainWindow::on_downloadItem_clicked()
+{
+    m_progressBar->show();
+    const auto songList = m_musicStore->downloadMusic();
+    if (songList.isEmpty())
+    {
         qWarning() << "[MainWindow] Download failed or cancelled";
         return;
     }
 
-    const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
-    if (indexes.isEmpty()) {
+    const auto indexes = m_selectionState->currentSelection();
+    if (indexes.isEmpty())
+    {
         qWarning() << "[MainWindow] No selection to apply the download to";
         return;
     }
 
-    const QModelIndex selection = indexes.constFirst();
+    const QModelIndex selection = indexes.indexes().constFirst();
     const QModelIndex index = m_secondarymodel->index(selection.row());
     auto *listItem = m_secondarymodel->getItem();
 
     listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
     listItem->getItem(index.row())->setSong(songList.constFirst());
 
-    for (int i = 1; i < songList.count(); ++i) {
+    for (int i = 1; i < songList.count(); ++i)
+    {
         auto item = MusicItem(songList.at(i)->title(), songList.at(i));
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
 
     setWindowModified(true);
     m_stickyModified = true;
-    ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
-    updateItemCountLabel();
-    songUpdated(index);
+    m_progressBar->accept();
+    // updateItemCountLabel();
+    // songUpdated(index);
 }
 
-
-void MainWindow::on_addRadio_clicked() {
-    InsertPrimaryCommand *cmd = new InsertPrimaryCommand(ui->listView, m_primarymodel, "New list", false, m_primarymodel->rowCount());
+void MainWindow::on_addRadio_clicked()
+{
+    InsertCommand *cmd = new InsertCommand(m_primarymodel, tr("New list"), false, m_primarymodel->rowCount());
     m_undoStack->push(cmd);
     ui->listView->setFocus();
 }
 
-void MainWindow::prepareDirectories() {
-    QSettings settings("Kori", "Music Manager");
-    for(auto &key : settings.allKeys()) {
-        qDebug() << QString("[MainWindow] Setting with key %1 set to %2").arg(key, settings.value(key).toString());
-    }
-    setUiEnabled(false);
-    setGameDir(false);
-    setSaveFile(false);
-    setMusicDir(false);
-    if (m_gameDir.exists())
-        setUiEnabled(true);
-}
-
-QString MainWindow::getDir(const QString &message, const QString &defaultPath) {
-    QString path = QFileDialog::getExistingDirectory(
-        this,
-        message,
-        defaultPath,
-        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
-    // if (path.isEmpty() || !QDir(path).exists()) {
-    //     showWarningBox(tr("Select a valid directory"));
-    // }
-    return path;
-}
-
-void MainWindow::showInfoBox(const QString &message) {
+void MainWindow::showInfoBox(const QString &message)
+{
     QMessageBox::information(this, tr("Information"), message);
 }
 
-void MainWindow::showWarningBox(const QString &message) {
+void MainWindow::showWarningBox(const QString &message)
+{
     QMessageBox::warning(this, tr("Warning"), message);
 }
 
-void MainWindow::showErrorBox(const QString &message) {
+void MainWindow::showErrorBox(const QString &message)
+{
     QMessageBox::critical(this, tr("Error"), message);
 }
 
-void MainWindow::setUiEnabled(bool enabled) {
+void MainWindow::setUiEnabled(bool enabled)
+{
     centralWidget()->setEnabled(enabled);
     menuBar()->setEnabled(enabled);
-}
-
-bool MainWindow::setMusicDir(bool exp) {
-    QSettings settings("Kori", "Music Manager");
-    QString musicDirName = "music";
-    QDir musicDir = m_gameDir;
-
-    if (exp) {
-        QString path = getDir(tr("Select music directory"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath());
-        if (!path.isEmpty() && QDir(path).exists()) {
-            settings.setValue("musicdir", QVariant::fromValue(path));
-            musicDir = QDir(path);
-        } else {
-            showWarningBox(tr("Please select a valid directory."));
-            return false;
-        }
-    } else {
-        if (settings.contains("musicdir")) {
-            auto path = settings.value("musicdir").toString();
-            if (!path.isEmpty() && QDir(path).exists()) {
-                musicDir = QDir(path);
-                settings.setValue("musicdir", QVariant::fromValue(path));
-            } else {
-                showWarningBox(tr("Music directory invalid. Defaulting to game directory. If that is incorrect change it in the settings."));
-                settings.setValue("musicdir", QVariant::fromValue(m_gameDir.absolutePath()));
-            }
-        }
-    }
-
-    if (!musicDir.exists(musicDirName)) {
-        if (!musicDir.mkpath(musicDirName)) {
-            qWarning() << "[MainWindow] Failed to create music directory";
-            return false;
-        }
-    }
-    if (!musicDir.cd(musicDirName)) {
-        qWarning() << "[MainWindow] Failed to enter music subdirectory";
-        return false;
-    }
-    m_musicStore->setMusicDir(musicDir);
-    return exp;
-}
-
-bool MainWindow::setGameDir(bool exp) {
-    QSettings settings("Kori", "Music Manager");
-    if (exp) {
-        QDir dir;
-        QString path;
-        do {
-            path = getDir(tr("Select game directory"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath());
-            dir = QDir(path);
-            if (dir.exists() && !path.isEmpty()) {
-                if(dir.entryList().contains("mysummercar.exe") || dir.entryList().contains("mywintercar.exe")) { // INFO: Check if game is really here
-                    QString saveVal = dir.absolutePath();
-                    settings.setValue("gamedir", QVariant::fromValue(saveVal));
-                    m_gameDir = dir;
-                    setMusicDir(false);
-                    return true;
-                }
-            }
-            showWarningBox(tr("Directory does not contain mysummercar.exe or mywintercar.exe, please select a valid directory."));
-        } while(!dir.exists() || path.isEmpty());
-    } else {
-        if (settings.contains("gamedir")) {
-            auto path = settings.value("gamedir").toString();
-            if (!path.isEmpty() && QDir(path).exists()) {
-                m_gameDir = QDir(path);
-                return false;
-            }
-        }
-        setGameDir(true);
-    }
-    return false;
-}
-
-bool MainWindow::setSaveFile(bool exp, bool open) {
-    QSettings settings("Kori", "Music Manager");
-
-    if (exp) {
-        if (open) {
-            QString saveFilePath = QFileDialog::getOpenFileName(this,tr("Open File"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath() , tr("MusicManager save (*.msc)"));
-            QFileInfo info(saveFilePath);
-            if (!info.isFile()) return false;
-            m_appSave = info;
-            settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
-            return true;
-        } else {
-            QString saveFilePath = QFileDialog::getSaveFileName(this, tr("Save File"), m_appSave.exists() ? m_appSave.absolutePath() : m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath(), tr("MusicManager save (*.msc)"));
-            m_appSave = QFileInfo(saveFilePath);
-            settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
-            return true;
-        }
-    } else {
-        if (settings.contains("saveLocation")) {
-            QString saveFilePath = settings.value("saveLocation").toString();
-            QFileInfo info(saveFilePath);
-            if (!info.isFile()) {
-                setSaveFile(true);
-                return true;
-            } else {
-                m_appSave = info;
-                return false;
-            }
-        } else {
-            if (m_gameDir.exists())
-                settings.setValue("saveLocation", QVariant::fromValue(m_gameDir.absoluteFilePath("save.msc")));
-        }
-    }
-    return false;
 }
 
 void MainWindow::showListContextMenu(const QPoint &pos)
@@ -476,15 +440,20 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     auto res = contextMenu.exec(ui->listView->viewport()->mapToGlobal(pos));
     if (res == &action1)
         ui->listView->edit(index);
-    else if (res == &action2) {
+    else if (res == &action2)
+    {
         QUndoCommand *macro = new QUndoCommand("Remove Lists");
         for (const QModelIndex &index : std::as_const(list))
             new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
         m_undoStack->push(macro);
-    } else if (res == &action3) {
+    }
+    else if (res == &action3)
+    {
         QMimeData *data = m_primarymodel->mimeData(list);
         QApplication::clipboard()->setMimeData(data);
-    } else if (res == &action4) {
+    }
+    else if (res == &action4)
+    {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
         CutCommand *cmd = new CutCommand(ui->listView, binary, m_secondarymodel->mimeTypes().constFirst());
@@ -492,14 +461,18 @@ void MainWindow::showListContextMenu(const QPoint &pos)
         int firstRow = list.first().row();
         int rowCount = list.count();
         m_secondarymodel->removeRows(firstRow, rowCount);
-    } else if (res == &action5) {
+    }
+    else if (res == &action5)
+    {
         int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
         QString format = data->formats().constFirst();
         QByteArray binary = data->data(format);
         PasteCommand *cmd = new PasteCommand(ui->listView, binary, format, firstRow);
         m_undoStack->push(cmd);
-    } else if (res == &action6) {
+    }
+    else if (res == &action6)
+    {
         auto *cmd = new ToggleTypeCommand(m_primarymodel, index);
         m_undoStack->push(cmd);
     }
@@ -530,15 +503,20 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     auto res = contextMenu.exec(ui->listItemView->viewport()->mapToGlobal(pos));
     if (res == &action1)
         ui->listItemView->edit(index);
-    else if (res == &action2) {
+    else if (res == &action2)
+    {
         QUndoCommand *macro = new QUndoCommand("Remove Songs");
         for (const QModelIndex &index : std::as_const(list))
             new RemoveCommand(ui->listItemView, index.row(), nullptr, macro);
         m_undoStack->push(macro);
-    } else if (res == &action3) {
+    }
+    else if (res == &action3)
+    {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QApplication::clipboard()->setMimeData(data);
-    } else if (res == &action4) {
+    }
+    else if (res == &action4)
+    {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
         CutCommand *cmd = new CutCommand(ui->listItemView, binary, m_secondarymodel->mimeTypes().constFirst());
@@ -546,7 +524,9 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
         int firstRow = list.first().row();
         int rowCount = list.count();
         m_secondarymodel->removeRows(firstRow, rowCount);
-    } else if (res == &action5) {
+    }
+    else if (res == &action5)
+    {
         int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
         QString format = data->formats().constFirst();
@@ -556,92 +536,93 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     }
 }
 
-void MainWindow::songUpdated(const QModelIndex &index) {
-    setWindowModified(true);
-    auto pixmapPath = m_secondarymodel->getSong(index.row())->pixmapPath();
-    static const QPixmap empty(":/defaults/no-image.webp");
-    QPixmap pixmap = empty;
-    if (!pixmapPath.isEmpty()) {
-        pixmap = QPixmap(pixmapPath);
-    }
-    pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
-    ui->songArt->setPixmap(pixmap);
-    QString title = m_secondarymodel->getSong(index.row())->title();
-    QString artist = m_secondarymodel->getSong(index.row())->artist();
-    ui->songLabel->setText(title);
-    ui->artistLabel->setText(artist);
-    ui->playSong->setEnabled(true);
-    // ui->stop->setEnabled(true);
-}
+// void MainWindow::songUpdated(const QModelIndex &index) {
+//     setWindowModified(true);
+//     auto pixmapPath = m_secondarymodel->getSong(index.row())->pixmapPath();
+//     static const QPixmap empty(":/defaults/no-image.webp");
+//     QPixmap pixmap = empty;
+//     if (!pixmapPath.isEmpty()) {
+//         pixmap = QPixmap(pixmapPath);
+//     }
+//     pixmap = pixmap.scaled(ui->centralwidget->size()/4, Qt::KeepAspectRatio);
+//     ui->songArt->setPixmap(pixmap);
+//     QString title = m_secondarymodel->getSong(index.row())->title();
+//     QString artist = m_secondarymodel->getSong(index.row())->artist();
+//     ui->songLabel->setText(title);
+//     ui->artistLabel->setText(artist);
+//     ui->playSong->setEnabled(true);
+//     // ui->stop->setEnabled(true);
+// }
 
-void MainWindow::saveAppData() {
-    if (!m_appSave.isFile()) setSaveFile(true, false);
-    if (!m_appSave.isFile()) m_appSave = QFileInfo(m_gameDir.absoluteFilePath("save.msc"));
-    QFileInfo savePath = m_appSave;
-    qDebug() << "[MainWindow] Save start";
-    qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
-    QFile file(savePath.absoluteFilePath());
-    if (!file.open(QIODevice::WriteOnly))
-        return;
-    QDataStream out(&file);
-    auto primaryItems = m_primarymodel->getItems();
-    auto songs = m_musicStore->getSongs();
-    auto insertedList = m_gameManager->getAllInserted();
-    m_undoStack->clear();
-    out << primaryItems;
-    out << songs;
-    out << insertedList;
-    out << m_musicStore->getMusicDir().absolutePath();
-    setWindowModified(false);
-    m_stickyModified = false;
-    qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
-}
+// void MainWindow::saveAppData() {
+// if (!m_appSave.isFile()) setSaveFile(true, false);
+// if (!m_appSave.isFile()) m_appSave = QFileInfo(m_gameDir.absoluteFilePath("save.msc"));
+// QFileInfo savePath = m_appSave;
+// qDebug() << "[MainWindow] Save start";
+// qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
+// QFile file(savePath.absoluteFilePath());
+// if (!file.open(QIODevice::WriteOnly))
+//     return;
+// QDataStream out(&file);
+// auto primaryItems = m_primarymodel->getItems();
+// auto songs = m_musicStore->getSongs();
+// // auto insertedList = m_gameManager->getAllInserted();
+// m_undoStack->clear();
+// out << primaryItems;
+// out << songs;
+// out << QVector<QString> {};
+// out << m_musicStore->getMusicDir().absolutePath();
+// setWindowModified(false);
+// m_stickyModified = false;
+// qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
+// }
 
-void MainWindow::loadAppData() {
-    qDebug() << "[MainWindow] Load start";
-    QFile file(m_appSave.absoluteFilePath());
+// void MainWindow::loadAppData() {
+//     qDebug() << "[MainWindow] Load start";
+//     QFile file(m_appSave.absoluteFilePath());
 
-    if (!file.open(QIODevice::ReadOnly))
-        return;
+//     if (!file.open(QIODevice::ReadOnly))
+//         return;
 
-    QDataStream in(&file);
-    QVector<ListItem> primaryList;
-    QHash<QString, MusicObject> songsOwned;
-    QString musicPath;
-    QVector<QString> insertedList;
-    in >> primaryList >> songsOwned >> insertedList >> musicPath;
-    m_primarymodel->setItems(primaryList);
-    QHash<QString, std::shared_ptr<MusicObject>> songsShared;
+//     QDataStream in(&file);
+//     QVector<ListItem> primaryList;
+//     QHash<QString, MusicObject> songsOwned;
+//     QString musicPath;
+//     QVector<QString> insertedList;
+//     in >> primaryList >> songsOwned >> insertedList >> musicPath;
+//     m_primarymodel->setItems(primaryList);
+//     QHash<QString, std::shared_ptr<MusicObject>> songsShared;
 
-    for (auto it = songsOwned.constBegin(); it != songsOwned.constEnd(); it++) {
-        auto key = it.key();
-        auto value = it.value();
-        value.setStoragePath(musicPath);
-        qDebug() << QString("[MainWindow] Loading song key: %1, value: %2").arg(key, value.title());
-        songsShared.insert(key, std::make_shared<MusicObject>(value));
-    }
+//     for (auto it = songsOwned.constBegin(); it != songsOwned.constEnd(); it++) {
+//         auto key = it.key();
+//         auto value = it.value();
+//         value.setStoragePath(musicPath);
+//         qDebug() << QString("[MainWindow] Loading song key: %1, value: %2").arg(key, value.title());
+//         songsShared.insert(key, std::make_shared<MusicObject>(value));
+//     }
 
-    m_gameManager->setInserted(insertedList);
-    m_musicStore->setSongs(songsShared);
+//     // m_gameManager->setInserted(insertedList);
+//     m_musicStore->setSongs(songsShared);
 
-    if (m_musicStore->getMusicDir() != musicPath)
-        musicMismatch(!musicPath.isEmpty() && QDir(musicPath).exists(), musicPath);
+//     if (m_musicStore->getMusicDir() != musicPath)
+//         musicMismatch(!musicPath.isEmpty() && QDir(musicPath).exists(), musicPath);
 
-    int secondarySum = 0;
-    for (auto &prim : m_primarymodel->getItems()) {
-        qDebug() << QString("[MainWindow] Primary list has %1 elements").arg(prim.itemCount());
-        for (auto &sec : prim.getItems()){
-            qDebug() << QString("[MainWindow] List %1 title: %2 ").arg(prim.title(), sec.title());
-            QString hash = sec.getHash();
-            auto songPtr = m_musicStore->queryMusic(hash);
-            sec.setSong(songPtr);
-            secondarySum++;
-        }
-    }
-    qDebug() << QString("[MainWindow] Loaded %1 primary elements, %2 secondary elements and %3 songs").arg(m_primarymodel->getItems().length()).arg(secondarySum).arg(songsShared.size());
-}
+//     int secondarySum = 0;
+//     for (auto &prim : m_primarymodel->getItems()) {
+//         qDebug() << QString("[MainWindow] Primary list has %1 elements").arg(prim.itemCount());
+//         for (auto &sec : prim.getItems()){
+//             qDebug() << QString("[MainWindow] List %1 title: %2 ").arg(prim.title(), sec.title());
+//             QString hash = sec.getHash();
+//             auto songPtr = m_musicStore->queryMusic(hash);
+//             sec.setSong(songPtr);
+//             secondarySum++;
+//         }
+//     }
+//     qDebug() << QString("[MainWindow] Loaded %1 primary elements, %2 secondary elements and %3 songs").arg(m_primarymodel->getItems().length()).arg(secondarySum).arg(songsShared.size());
+// }
 
-QListView *MainWindow::currentListView() const {
+QListView *MainWindow::currentListView() const
+{
     if (ui->listView->hasFocus())
         return ui->listView;
 
@@ -651,7 +632,8 @@ QListView *MainWindow::currentListView() const {
     return nullptr;
 }
 
-void MainWindow::copy() {
+void MainWindow::copy()
+{
     auto view = currentListView();
     if (!view)
         return;
@@ -663,7 +645,8 @@ void MainWindow::copy() {
     QApplication::clipboard()->setMimeData(data);
 }
 
-void MainWindow::paste() {
+void MainWindow::paste()
+{
     auto view = currentListView();
     if (!view)
         return;
@@ -672,10 +655,10 @@ void MainWindow::paste() {
     QByteArray binary = data->data(format);
     PasteCommand *cmd = new PasteCommand(view, binary, format);
     m_undoStack->push(cmd);
-
 }
 
-void MainWindow::cut() {
+void MainWindow::cut()
+{
     auto view = currentListView();
     if (!view)
         return;
@@ -691,80 +674,84 @@ void MainWindow::cut() {
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (!isWindowModified()) {
+    if (!isWindowModified())
+    {
         event->accept();
         return;
-    } else {
-        saveAppData();
+    }
+    else
+    {
+        // saveAppData();
         event->accept();
     }
-
-
 }
 
-void MainWindow::on_insertCD1_clicked()
-{
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD1, m_secondarymodel->getItem()->getInsertHash());
-    ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD1")), 3000);
-    setWindowModified(true);
-    m_stickyModified = true;
-    setInsertGroupBox();
-}
+// void MainWindow::on_insertCD1_clicked()
+// {
+//     m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD1, m_secondarymodel->getItem()->getInsertHash());
+//     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD1")), 3000);
+//     setWindowModified(true);
+//     m_stickyModified = true;
+//     setInsertGroupBox();
+// }
 
+// void MainWindow::on_insertCD2_clicked()
+// {
+//     m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD2, m_secondarymodel->getItem()->getInsertHash());
+//     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD2")), 3000);
+//     setWindowModified(true);
+//     m_stickyModified = true;
+//     setInsertGroupBox();
+// }
 
-void MainWindow::on_insertCD2_clicked()
-{
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD2, m_secondarymodel->getItem()->getInsertHash());
-    ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD2")), 3000);
-    setWindowModified(true);
-    m_stickyModified = true;
-    setInsertGroupBox();
-}
+// void MainWindow::on_insertCD3_clicked()
+// {
+//     m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD3, m_secondarymodel->getItem()->getInsertHash());
+//     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD3")), 3000);
+//     setWindowModified(true);
+//     m_stickyModified = true;
+//     setInsertGroupBox();
+// }
 
-void MainWindow::on_insertCD3_clicked()
-{
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::CD3, m_secondarymodel->getItem()->getInsertHash());
-    ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("CD3")), 3000);
-    setWindowModified(true);
-    m_stickyModified = true;
-    setInsertGroupBox();
-}
-
-void MainWindow::on_insertRadio_clicked()
-{
-    m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::RADIO, m_secondarymodel->getItem()->getInsertHash());
-    ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("Radio")), 3000);
-    setWindowModified(true);
-    m_stickyModified = true;
-    setInsertGroupBox();
-}
+// void MainWindow::on_insertRadio_clicked()
+// {
+//     m_gameManager->insertSubdirToGame(m_secondarymodel->getSongs(), GameManager::RADIO, m_secondarymodel->getItem()->getInsertHash());
+//     ui->statusbar->showMessage(QString(tr("Inserted into %2").arg("Radio")), 3000);
+//     setWindowModified(true);
+//     m_stickyModified = true;
+//     setInsertGroupBox();
+// }
 
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() == Qt::Key_Delete) {
-        if (ui->listView->hasFocus()) {
+    if (event->key() == Qt::Key_Delete)
+    {
+        if (ui->listView->hasFocus())
+        {
             auto list = ui->listView->selectionModel()->selectedIndexes();
             QUndoCommand *macro = new QUndoCommand("Remove Lists");
             for (const QModelIndex &index : std::as_const(list))
                 new RemoveCommand(ui->listView, index.row(), m_secondarymodel, macro);
             m_undoStack->push(macro);
-        } else if (ui->listItemView->hasFocus()) {
+        }
+        else if (ui->listItemView->hasFocus())
+        {
             auto list = ui->listItemView->selectionModel()->selectedIndexes();
             QUndoCommand *macro = new QUndoCommand("Remove Songs");
             for (const QModelIndex &index : std::as_const(list))
                 new RemoveCommand(ui->listItemView, index.row(), nullptr, macro);
             m_undoStack->push(macro);
         }
-
     }
     QMainWindow::keyPressEvent(event);
 }
 
-void MainWindow::updateItemCountLabel() {
-    auto data = m_secondarymodel->getItem();
-    if (data == nullptr) return;
+void MainWindow::updateItemCountLabel(const ListItem *data)
+{
+    if (data == nullptr)
+        return;
     int count = data->itemCount();
-    int maximum = data->type() ? 15 : 199; //FIXME: Magic numbers
+    int maximum = data->type() ? 15 : 199; // FIXME: Magic numbers
     ui->songAmountlabel->setText(QString("%1/%2").arg(count).arg(maximum));
     if (count > maximum)
         ui->songAmountlabel->setStyleSheet("color: red;");
@@ -772,17 +759,35 @@ void MainWindow::updateItemCountLabel() {
         ui->songAmountlabel->setStyleSheet("");
 }
 
-
 void MainWindow::on_importItem_clicked()
 {
-    const auto songList = m_musicStore->importMusic(this);
-    if (songList.isEmpty()) {
+    const auto files = QFileDialog::getOpenFileNames(
+        this,
+        tr("Open Audio Files"),
+        QDir::homePath(),
+        tr(
+            "All Audio Files (*.mp3 *.ogg *.oga *.opus *.flac *.wav *.aiff *.aif *.aac *.m4a *.mp4 *.wma *.wv *.ape *.mpc *.spx *.tta *.dsf *.dff *.ac3 *.dts);;"
+            "MP3 (*.mp3);;"
+            "OGG Vorbis (*.ogg *.oga);;"
+            "Opus (*.opus);;"
+            "FLAC (*.flac);;"
+            "WAV (*.wav *.aiff *.aif);;"
+            "AAC / M4A (*.aac *.m4a *.mp4);;"
+            "WMA (*.wma);;"
+            "TrueAudio (*.tta);;"
+            "DSD (*.dsf *.dff);;"
+            "AC3 / DTS (*.ac3 *.dts);;"
+            "All Files (*)"));
+    const auto songList = m_musicStore->importMusic(files);
+    if (songList.isEmpty())
+    {
         qWarning() << "[MainWindow] Import failed or cancelled";
         return;
     }
 
     const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
-    if (indexes.isEmpty()) {
+    if (indexes.isEmpty())
+    {
         qWarning() << "[MainWindow] No selection to apply the import to";
         return;
     }
@@ -794,7 +799,8 @@ void MainWindow::on_importItem_clicked()
     listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
     listItem->getItem(index.row())->setSong(songList.constFirst());
 
-    for (int i = 1; i < songList.count(); ++i) {
+    for (int i = 1; i < songList.count(); ++i)
+    {
         auto item = MusicItem(songList.at(i)->title(), songList.at(i));
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
@@ -802,134 +808,148 @@ void MainWindow::on_importItem_clicked()
     setWindowModified(true);
     m_stickyModified = true;
     ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
-    updateItemCountLabel();
-    songUpdated(index);
+    // updateItemCountLabel();
+    // songUpdated(index);
 }
 
-void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir) {
-    auto songsShared = m_musicStore->getSongsShared();
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle(tr("Music directory mismatch"));
-    msgBox.setText(tr("Saved music directory does not match the current one. Choose how to solve this issue."));
-    QPushButton *setToButton = nullptr;
-    QPushButton *copyButton =   nullptr;
-    QPushButton *moveButton =   nullptr;
-    QPushButton *deleteButton = nullptr;
-    if (oldExists) {
-        deleteButton = msgBox.addButton(tr("Delete old (New session)"), QMessageBox::ActionRole);
-        if (oldDir.exists())
-            setToButton = msgBox.addButton(tr("Set music direcory to the saved one"), QMessageBox::ActionRole);
-        copyButton = msgBox.addButton(tr("Copy old to new"), QMessageBox::ActionRole);
-        moveButton = msgBox.addButton(tr("Move old to new"), QMessageBox::ActionRole);
-    } else {
-        deleteButton = msgBox.addButton(tr("New session"), QMessageBox::ActionRole);
-    }
-    QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
-    msgBox.exec();
-    if(msgBox.clickedButton() == abortButton) {
-        exit(EXIT_FAILURE);
-    } else if (copyButton != nullptr && msgBox.clickedButton() == copyButton) {
-        m_musicStore->copyAllSongs(m_musicStore->getMusicDir());
-    } else if (moveButton != nullptr && msgBox.clickedButton() == moveButton) {
-        m_musicStore->moveAllSongs(m_musicStore->getMusicDir());
-    } else if (deleteButton != nullptr && msgBox.clickedButton() == deleteButton) {
-        m_primarymodel->removeRows(0, m_primarymodel->rowCount());
-        m_musicStore->uncheckedRemoveAll();
-        m_musicStore->setSongs({});
-    } else if (setToButton != nullptr && msgBox.clickedButton() == setToButton) {
-        m_musicStore->setMusicDir(oldDir);
-    } else {
-        exit(EXIT_FAILURE);
-    }
-    m_musicStore->setSongs(songsShared);
+void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir)
+{
+    // auto songsShared = m_musicStore->getSongsShared();
+    // QMessageBox msgBox(this);
+    // msgBox.setWindowTitle(tr("Music directory mismatch"));
+    // msgBox.setText(tr("Saved music directory does not match the current one. Choose how to solve this issue."));
+    // QPushButton *setToButton = nullptr;
+    // QPushButton *copyButton = nullptr;
+    // QPushButton *moveButton = nullptr;
+    // QPushButton *deleteButton = nullptr;
+    // if (oldExists)
+    // {
+    //     deleteButton = msgBox.addButton(tr("Delete old (New session)"), QMessageBox::ActionRole);
+    //     if (oldDir.exists())
+    //         setToButton = msgBox.addButton(tr("Set music direcory to the saved one"), QMessageBox::ActionRole);
+    //     copyButton = msgBox.addButton(tr("Copy old to new"), QMessageBox::ActionRole);
+    //     moveButton = msgBox.addButton(tr("Move old to new"), QMessageBox::ActionRole);
+    // }
+    // else
+    // {
+    //     deleteButton = msgBox.addButton(tr("New session"), QMessageBox::ActionRole);
+    // }
+    // QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
+    // msgBox.exec();
+    // if (msgBox.clickedButton() == abortButton)
+    // {
+    //     exit(EXIT_FAILURE);
+    // }
+    // else if (copyButton != nullptr && msgBox.clickedButton() == copyButton)
+    // {
+    //     m_musicStore->copyAllSongs(m_musicStore->getMusicDir());
+    // }
+    // else if (moveButton != nullptr && msgBox.clickedButton() == moveButton)
+    // {
+    //     m_musicStore->moveAllSongs(m_musicStore->getMusicDir());
+    // }
+    // else if (deleteButton != nullptr && msgBox.clickedButton() == deleteButton)
+    // {
+    //     m_primarymodel->removeRows(0, m_primarymodel->rowCount());
+    //     m_musicStore->uncheckedRemoveAll();
+    //     m_musicStore->setSongs({});
+    // }
+    // else if (setToButton != nullptr && msgBox.clickedButton() == setToButton)
+    // {
+    //     m_musicStore->setMusicDir(oldDir);
+    // }
+    // else
+    // {
+    //     exit(EXIT_FAILURE);
+    // }
+    // m_musicStore->setSongs(songsShared);
 }
 
-void MainWindow::importDirectory(int type) {
+void MainWindow::importDirectory(int type)
+{
     QDir directory;
     bool listType = true;
-    QStringList names {tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
+    QStringList names{tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
 
-    switch (type) {
-    case GameManager::CD1:
-        directory = m_gameDir;
-        if (!directory.cd("CD1")) {
-            qWarning() << "[MainWindow] Can't cd to requested directory";
-            return;
-        }
-        break;
-    case GameManager::CD2:
-        directory = m_gameDir;
-        if (!directory.cd("CD2")) {
-            qWarning() << "[MainWindow] Can't cd to requested directory";
-            return;
-        }
-        break;
-    case GameManager::CD3:
-        directory = m_gameDir;
-        if (!directory.cd("CD3")) {
-            qWarning() << "[MainWindow] Can't cd to requested directory";
-            return;
-        }
-        break;
-    case GameManager::RADIO:
-        directory = m_gameDir;
-        if (!directory.cd("Radio")) {
-            qWarning() << "[MainWindow] Can't cd to requested directory";
-            return;
-        }
-        listType = false;
-        break;
-    case 4:
-        directory = getDir(tr("Select directory for import"), QDir::homePath());;
-        names[4] = directory.dirName().isEmpty() ? names.at(4) : directory.dirName();
-        break;
-    }
+    // switch (type) {
+    // case GameManager::CD1:
+    //     directory = m_gameDir;
+    //     if (!directory.cd("CD1")) {
+    //         qWarning() << "[MainWindow] Can't cd to requested directory";
+    //         return;
+    //     }
+    //     break;
+    // case GameManager::CD2:
+    //     directory = m_gameDir;
+    //     if (!directory.cd("CD2")) {
+    //         qWarning() << "[MainWindow] Can't cd to requested directory";
+    //         return;
+    //     }
+    //     break;
+    // case GameManager::CD3:
+    //     directory = m_gameDir;
+    //     if (!directory.cd("CD3")) {
+    //         qWarning() << "[MainWindow] Can't cd to requested directory";
+    //         return;
+    //     }
+    //     break;
+    // case GameManager::RADIO:
+    //     directory = m_gameDir;
+    //     if (!directory.cd("Radio")) {
+    //         qWarning() << "[MainWindow] Can't cd to requested directory";
+    //         return;
+    //     }
+    //     listType = false;
+    //     break;
+    // case 4:
+    //     directory = getDir(tr("Select directory for import"), QDir::homePath());;
+    //     names[4] = directory.dirName().isEmpty() ? names.at(4) : directory.dirName();
+    //     break;
+    // }
 
+    // QUndoCommand *macro = new QUndoCommand(tr("Import directory"));
+    // new InsertPrimaryCommand(ui->listView, m_primarymodel, names.at(type), listType, m_primarymodel->rowCount(), false, macro);
+    // new InsertSecondaryCommand(ui->listItemView, 0, macro);
+    // m_undoStack->push(macro);
 
+    // auto info = directory.entryInfoList();
+    // QStringList list;
+    // if (info.empty()) {
+    //     showWarningBox(tr("Nothing to import. Directory is empty"));
+    //     return;
+    // }
 
-    QUndoCommand *macro = new QUndoCommand(tr("Import directory"));
-    new InsertPrimaryCommand(ui->listView, m_primarymodel, names.at(type), listType, m_primarymodel->rowCount(), false, macro);
-    new InsertSecondaryCommand(ui->listItemView, 0, macro);
-    m_undoStack->push(macro);
+    // for (const auto &i : std::as_const(info)) {
+    //     list << i.absoluteFilePath();
+    // }
 
-    auto info = directory.entryInfoList();
-    QStringList list;
-    if (info.empty()) {
-        showWarningBox(tr("Nothing to import. Directory is empty"));
-        return;
-    }
+    // const auto songList = m_musicStore->importMusic(this, list);
+    // if (songList.isEmpty()) {
+    //     qWarning() << "[MainWindow] Import failed or cancelled";
+    //     return;
+    // }
 
-    for (const auto &i : std::as_const(info)) {
-        list << i.absoluteFilePath();
-    }
+    // const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
+    // if (indexes.isEmpty()) {
+    //     qWarning() << "[MainWindow] No selection to apply the import to";
+    //     return;
+    // }
 
-    const auto songList = m_musicStore->importMusic(this, list);
-    if (songList.isEmpty()) {
-        qWarning() << "[MainWindow] Import failed or cancelled";
-        return;
-    }
+    // const QModelIndex selection = indexes.constFirst();
+    // const QModelIndex index = m_secondarymodel->index(selection.row());
+    // auto *listItem = m_secondarymodel->getItem();
 
-    const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
-    if (indexes.isEmpty()) {
-        qWarning() << "[MainWindow] No selection to apply the import to";
-        return;
-    }
+    // listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
+    // listItem->getItem(index.row())->setSong(songList.constFirst());
 
-    const QModelIndex selection = indexes.constFirst();
-    const QModelIndex index = m_secondarymodel->index(selection.row());
-    auto *listItem = m_secondarymodel->getItem();
+    // for (int i = 1; i < songList.count(); ++i) {
+    //     auto item = MusicItem(songList.at(i)->title(), songList.at(i));
+    //     m_secondarymodel->insertRowInternal(index.row() + i, item);
+    // }
 
-    listItem->getItem(index.row())->setHash(songList.constFirst()->getHash());
-    listItem->getItem(index.row())->setSong(songList.constFirst());
-
-    for (int i = 1; i < songList.count(); ++i) {
-        auto item = MusicItem(songList.at(i)->title(), songList.at(i));
-        m_secondarymodel->insertRowInternal(index.row() + i, item);
-    }
-
-    setWindowModified(true);
-    m_stickyModified = true;
-    ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
-    updateItemCountLabel();
-    songUpdated(index);
+    // setWindowModified(true);
+    // m_stickyModified = true;
+    // ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
+    // updateItemCountLabel();
+    // songUpdated(index);
 }

@@ -1,7 +1,9 @@
 #include "download.h"
 #include <qcontainerfwd.h>
 #include <qdebug.h>
+#include <QFileInfo>
 #include <QProcess>
+#include <QRegularExpression>
 #include <qurl.h>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -9,101 +11,154 @@
 #include <qurlquery.h>
 #include <QStandardPaths>
 
-Downloader::Downloader(QObject* parent) : QObject(parent) {
-    #ifdef Q_OS_WIN
-        m_ytdlpPath = "yt-dlp.exe";
-    #elif defined(Q_OS_MAC)
-        m_ytdlpPath = "./yt-dlp";
-    #elif defined(Q_OS_LINUX)
-        m_ytdlpPath = "yt-dlp"; //TODO: alert if not found
-    #else
-        m_ytdlpPath = "./yt-dlp";
-    #endif
+Downloader::Downloader(QObject *parent) : QObject(parent)
+{
+#ifdef Q_OS_WIN
+    m_ytdlpPath = "yt-dlp.exe";
+#elif defined(Q_OS_MAC)
+    m_ytdlpPath = "./yt-dlp";
+#elif defined(Q_OS_LINUX)
+    m_ytdlpPath = "yt-dlp"; // TODO: alert if not found
+#else
+    m_ytdlpPath = "./yt-dlp";
+#endif
 
     QString ytdlpExe = QStandardPaths::findExecutable("yt-dlp");
     if (!ytdlpExe.isEmpty())
         m_ytdlpPath = ytdlpExe;
+
+    m_process = new QProcess(this);
 }
 
-void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &hash, QWidget *parent, bool allowPlaylists) {
-    QProcess *process = new QProcess(this);
+void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &hash, bool allowPlaylists)
+{
     QStringList arguments;
     QString ytdlpPath = QString(path.absolutePath() % "/%1").arg("%(title)s.%(ext)s");
     qDebug() << QString("[Downloader] Downloading to: %1").arg(ytdlpPath);
     arguments << "-x" << "--write-thumbnail" << "--audio-format" << "vorbis";
     if (!allowPlaylists)
         arguments << "--no-playlist";
-    arguments << "--print-json" << url.toDisplayString() << "-o" << ytdlpPath;
+    arguments << url.toDisplayString();
+    QStringList argumentsDownload = arguments;
+    QStringList argumentsCheck = arguments;
+    argumentsCheck << "--skip-download" << "--print-json";
+    argumentsDownload << "-o" << ytdlpPath << "--newline";
+    // QProgressDialog *progress = new QProgressDialog(tr("Downloading..."), tr("Abort Download"), 0, 100, parent);
+    // progress->setWindowModality(Qt::ApplicationModal);
+    // progress->setMinimumDuration(0);
+    // progress->setValue(50);
+    // progress->show();
+    connect(m_process, &QProcess::finished, this, [this, path, hash, argumentsDownload](int exitCode, QProcess::ExitStatus status)
+            {
 
-    QProgressDialog *progress = new QProgressDialog(tr("Downloading..."), tr("Abort Download"), 0, 100, parent);
-    progress->setWindowModality(Qt::ApplicationModal);
-    progress->setMinimumDuration(0);
-    progress->setValue(50);
-    progress->show();
-
-    connect(process, &QProcess::finished, this,
-        [this, process, path, progress, hash](int exitCode, QProcess::ExitStatus status) {
-
-            QString output = process->readAllStandardOutput();
+            QString output = m_process->readAllStandardOutput();
             if (exitCode == 0 || output.size() > 0) { // FIXME: Just pure heuristics. Yt-dlp will return 1 as the exit code if some playlist items are unavailable but it will still download the rest
-                qDebug() << "[Downloader] Download success";
-                progress->setValue(100);
-                handleDownloadFinished(output, path, hash);
-            } else {
+                qDebug() << "[Downloader] Query success";
+                QString currentName;
+                int count = output.trimmed().split("\n").count();
+                int fullPercent = 0;
+                auto progressMeter = connect(m_process, &QProcess::readyReadStandardOutput, this, [this, currentName, count, fullPercent]() mutable {
+                    static const QRegularExpression percentRegex(R"((?:\[download\]\s*)(\d+\.\d+))");
+                    static const QRegularExpression totalRegex(R"((?:%\s*of\s*)(\d+\.\d+\w+))");
+                    static const QRegularExpression speedRegex(R"((?:\s*at\s*)(\d+\.\d+\w+/s))");
+                    static const QRegularExpression nameRegex(R"((?:\[download\] Destination:\s*)(.+)( \[[^\[]*$))");
+                    static const QRegularExpression nameRegexAlt(R"((?:\[download\] Destination:\s*)(.+)(?:\.webm))");
+                    static const QRegularExpression etaRegex(R"((?:ETA\s*)(\d+:\d+))");
+
+                    while(m_process->canReadLine()) {
+                        const auto line = m_process->readLine().trimmed();
+                        const auto percentMatch = percentRegex.match(line);
+                        const auto totalMatch = totalRegex.match(line);
+                        const auto speedMatch = speedRegex.match(line);
+                        const auto nameMatch = nameRegex.match(line);
+                        const auto nameMatchAlt = nameRegexAlt.match(line);
+                        const auto etaMatch = etaRegex.match(line);
+
+                        if (nameMatch.hasMatch()) {
+                            currentName = QFileInfo(nameMatch.captured(1)).fileName();
+                        } else if (nameMatchAlt.hasMatch()) {
+                            currentName = QFileInfo(nameMatchAlt.captured(1)).fileName();
+                        }
+
+                        if (percentMatch.hasMatch() && totalMatch.hasMatch() && speedMatch.hasMatch() && etaMatch.hasMatch()) {
+                            const QString percentText = percentMatch.captured(1);
+                            const QString totalText = totalMatch.captured(1);
+                            const QString speedText = speedMatch.captured(1);
+                            const QString etaText = etaMatch.captured(1);
+                            int percent = fullPercent + percentText.toDouble() / count;
+                            qDebug() << "Progress:" << percentText << totalMatch.captured(1) << speedMatch.captured(1) << etaMatch.captured(1);
+                            fullPercent += 100 / count;
+                            emit progressUpdate(percent, currentName, totalText, speedText, etaText);
+                        } else {
+                            qDebug() << "Progress line:" << line;
+                        }
+                    }
+                });
+                connect(m_process, &QProcess::finished, this, [this, progressMeter, output, path, hash](int exitCode) {
+                disconnect(progressMeter);
+                if (exitCode == 0 || output.size() > 0) {
+                    qDebug() << "[Downloader] Download success";
+                    handleDownloadFinished(output, path, hash);
+                } else {
                 qWarning() << "[Downloader] Download failed";
-                qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
-                progress->setValue(100);
+                qDebug() << "[Downloader] stderr: " << m_process->readAllStandardError();
                 emit downloadFinished({});
-            }
+                }
 
-            process->deleteLater();
-            progress->deleteLater();
-        },
-            Qt::SingleShotConnection
-    );
+                }, Qt::SingleShotConnection);
+                m_process->start(m_ytdlpPath, argumentsDownload);
+            } else {
+                qWarning() << "[Downloader] Query failed";
+                qDebug() << "[Downloader] stderr: " << m_process->readAllStandardError();
+                emit downloadFinished({});
+            } }, Qt::SingleShotConnection);
 
-    connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
-        if (process)
-            process->kill();
-        progress->setValue(100);
-    },
-            Qt::SingleShotConnection
-    );
+    // connect(progress, &QProgressDialog::canceled, this, [this, process, progress]() {
+    //     if (process)
+    //         process->kill();
+    //     progress->setValue(100);
+    // },
+    //         Qt::SingleShotConnection
+    // );
 
-    process->start(m_ytdlpPath, arguments);
+    m_process->start(m_ytdlpPath, argumentsCheck);
 
-    if (!process->waitForStarted()) {
-        qWarning() << "[Downloader] Failed to start yt-dlp";
-        qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
-        progress->cancel();
-        return;
-    }
-
+    // if (!process->waitForStarted()) {
+    //     qWarning() << "[Downloader] Failed to start yt-dlp";
+    //     qDebug() << "[Downloader] stderr: " << process->readAllStandardError();
+    //     progress->cancel();
+    //     return;
+    // }
 }
 
-void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash) {
+void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash)
+{
     if (output.trimmed().split("\n").count() > 1)
         handleMultiple(output, songPath, hash);
     else
         handleSimple(output, songPath, hash);
 }
 
-void Downloader::handleSimple(const QString &output, const QDir &songPath, const QString &hash) {
+void Downloader::handleSimple(const QString &output, const QDir &songPath, const QString &hash)
+{
     auto song = json2song(output, songPath, hash);
     emit downloadFinished({song});
 }
 
-void Downloader::handleMultiple(const QString &output, const QDir &songPath, const QString &hash) {
+void Downloader::handleMultiple(const QString &output, const QDir &songPath, const QString &hash)
+{
     QString ownedOutput = output;
     QTextStream stream(&ownedOutput);
     QVector<QString> lines;
-    while(!stream.atEnd()) {
+    while (!stream.atEnd())
+    {
         lines << stream.readLine();
     }
 
     int i = 0;
     QVector<std::shared_ptr<MusicObject>> songs;
-    for (auto &line : lines) {
+    for (auto &line : lines)
+    {
         auto song = json2song(line, songPath, "search", i == 0 ? "plist" : QString()); // FIXME: Not verbose enough about the intent
         songs.append(song);
         i++;
@@ -111,7 +166,8 @@ void Downloader::handleMultiple(const QString &output, const QDir &songPath, con
     emit downloadFinished(songs);
 }
 
-std::shared_ptr<MusicObject> Downloader::json2song(const QString &output, const QDir &songPath, const QString &hash, const QString &postfix) {
+std::shared_ptr<MusicObject> Downloader::json2song(const QString &output, const QDir &songPath, const QString &hash, const QString &postfix)
+{
     QJsonDocument doc = QJsonDocument::fromJson(output.toUtf8());
     QString title = doc.object().value("title").toString();
     int duration = doc.object().value("duration").toInt();
@@ -119,10 +175,12 @@ std::shared_ptr<MusicObject> Downloader::json2song(const QString &output, const 
     QString url = doc.object().value("webpage_url").toString();
     QString hashActual = hash + postfix;
     QDir checkPath = songPath;
-    if (hash == "search") {
+    if (hash == "search")
+    {
         QString sanitizedUrl = url.remove("https://").remove("http://").remove("www."); // FIXME: This is not really exhaustive
         QUrlQuery query(QUrl(sanitizedUrl).query());
-        if(query.hasQueryItem("v")) {
+        if (query.hasQueryItem("v"))
+        {
             hashActual = QString("yt%1").arg(query.queryItemValue("v")) + postfix;
             qDebug() << "[Downloader] Found v in searched url: " + hashActual;
         }

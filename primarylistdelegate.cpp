@@ -14,8 +14,13 @@ void PrimaryListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 
     QString left = index.data(Qt::DisplayRole).toString();
     QString right = index.data(Qt::UserRole).toString();
-
     QRect rect = option.rect.adjusted(4, 0, -4, 0);
+
+    QVariant fgVariant = index.data(Qt::ForegroundRole);
+    QColor textColor = fgVariant.isValid() ? fgVariant.value<QColor>()
+                                           : option.palette.color(QPalette::Text);
+    painter->setPen(textColor);
+
     painter->setFont(option.font);
     painter->drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, left);
     painter->drawText(rect, Qt::AlignRight | Qt::AlignVCenter, right);

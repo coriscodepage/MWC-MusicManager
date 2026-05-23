@@ -39,7 +39,7 @@ void ListItem::removeItem(int index) {
     m_items.remove(index);
 }
 
-int ListItem::itemCount() {
+int ListItem::itemCount() const {
     return m_items.size();
 }
 

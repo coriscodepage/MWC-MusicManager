@@ -11,7 +11,7 @@
 class SecondaryListModel : public QAbstractListModel, public CustomModelEdit
 {
 public:
-    explicit SecondaryListModel(QObject *parent = nullptr, MusicStorage *musicStore = nullptr, QUndoStack *undoStack = nullptr);
+    explicit SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -28,12 +28,14 @@ public:
     bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) override;
     void setField(int field, const QString &value, const QModelIndex &index) override;
     QString getField(int field, const QModelIndex &index) override;
+    void removeAt(int row) override;
+    void insertEmptyAt(int row, const QString &name, bool type) override;
+    void moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) override;
 
     const MusicItem* getSong(int row);
     const QModelIndexList &copiedIndexes() const;
     ListItem *getItem();
     void setSource(ListItem *item);
-    void moveInternal(const QVector<MusicItem> &movingItems, int sourceRow, int count, int destinationChild); // FIXME: Why in the ever loving God is this public?
     const QVector<MusicItem> &getSongs() const;
     bool insertRowInternal(int row, MusicItem &item);
 

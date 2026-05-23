@@ -31,5 +31,6 @@ private:
 };
 
 Q_DECLARE_METATYPE(MusicItem);
+Q_DECLARE_METATYPE(MusicItem*);
 
 #endif // MUSICITEM_H

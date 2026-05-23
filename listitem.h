@@ -18,7 +18,7 @@ public:
     QVector<MusicItem> &getItems();
     void setItems(const QVector<MusicItem> &items);
     void removeItem(int index);
-    int itemCount();
+    int itemCount() const;
     void setType(bool type);
     const QString &getInsertHash() const;
 
@@ -32,5 +32,6 @@ private:
 };
 
 Q_DECLARE_METATYPE(ListItem)
+Q_DECLARE_METATYPE(ListItem*)
 
 #endif // LISTITEM_H

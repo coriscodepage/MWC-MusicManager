@@ -41,13 +41,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
 
 
 
-        moveprimarycommand.h moveprimarycommand.cpp
-        movesecondarycommand.h movesecondarycommand.cpp
+        movecommand.h movecommand.cpp
 
 
-        insertprimarycommand.h insertprimarycommand.cpp
-        insertsecondarycommand.h insertsecondarycommand.cpp
-        gamemanager.h gamemanager.cpp
+
+        insertcommand.h insertcommand.cpp
+
+
         targetlistview.h targetlistview.cpp
         removecommand.h removecommand.cpp
         toggletypecommand.h toggletypecommand.cpp
@@ -57,6 +57,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         mediaplayer.h mediaplayer.cpp
         selectioncontroller.h selectioncontroller.cpp
         insertcontroller.h insertcontroller.cpp
+        librarycontroller.h librarycontroller.cpp
+        filemanager.h filemanager.cpp
+        selectionstate.h selectionstate.cpp
+        progressdialog.h progressdialog.cpp progressdialog.ui
 
     )
 # Define target properties for Android with Qt 6 as:

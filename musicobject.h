@@ -54,18 +54,18 @@ private:
 
 struct MusicInfo {
     QString title;
-    const int duration = 0;
-    const QString artist;
-    const QDir storagePath;
-    const QDir entryPath;
-    const QFileInfo songName;
-    const QString thumbnailPath;
-    const QString hash;
-    const QString url;
-    const bool valid = false;
-    const bool hasThumbnail = false;
-    const bool markedForDeletion = false;
-    MusicInfo(const QString title, int duration, const QString artist, const QDir storagePath, const QDir entryPath, const QFileInfo songName, const QString thumbnailPath, const QString hash, const QString url, bool valid, bool hasThumbnail, bool markedForDeletion)
+    int duration = 0;
+    QString artist;
+    QDir storagePath;
+    QDir entryPath;
+    QFileInfo songName;
+    QString thumbnailPath;
+    QString hash;
+    QString url;
+    bool valid = false;
+    bool hasThumbnail = false;
+    bool markedForDeletion = false;
+    MusicInfo(QString title, int duration,  QString artist,  QDir storagePath,  QDir entryPath,  QFileInfo songName,  QString thumbnailPath,  QString hash,  QString url, bool valid, bool hasThumbnail, bool markedForDeletion)
         :title(title), duration(duration), artist(artist), storagePath(storagePath), entryPath(entryPath), songName(songName), thumbnailPath(thumbnailPath), hash(hash), url(url), valid(valid), hasThumbnail(hasThumbnail), markedForDeletion(markedForDeletion) {}
     MusicInfo() = default;
 };

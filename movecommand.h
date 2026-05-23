@@ -1,25 +1,22 @@
 #ifndef MOVECOMMAND_H
 #define MOVECOMMAND_H
 
-#include "musicstorage.h"
+#include "custommodeledit.h"
 #include <QUndoCommand>
-#include <qabstractitemmodel.h>
-#include <QMimeData>
 
 class MoveCommand : public QUndoCommand
 {
 public:
-    MoveCommand(QAbstractListModel *model, const QMimeData *data, int row, int count, const QModelIndexList &draggedIndexes);
+    MoveCommand(CustomModelEdit *model, const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild);
     void undo() override;
     void redo() override;
 
 private:
-    QAbstractListModel *m_model;
-    MusicStorage *m_musicStore;
-    const QMimeData *m_data;
-    int m_row;
+    CustomModelEdit *m_model;
+    const QVector<QVariant> m_movingItems;
+    int m_sourceRow;
     int m_count;
-    QModelIndexList m_draggedIndexes;
+    int m_destinationChild;
 };
 
 #endif // MOVECOMMAND_H
