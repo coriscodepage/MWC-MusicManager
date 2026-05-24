@@ -8,30 +8,15 @@ void SelectionState::updateState(QItemSelection currentSelection, QVector<const 
     m_currentSelection = currentSelection;
     m_resolvedSongs = resolvedSongs;
     if (m_resolvedSongs.count() == 1) {
-        qDebug() << "[SelectionState] Single selection";
+        // qDebug() << "[SelectionState] Single selection";
         m_currentInfo = m_resolvedSongs.constFirst()->musicInfo();
         emit songSelected(&m_currentInfo, resolveThumbnail(m_currentInfo.thumbnailPath));
     } else if (m_resolvedSongs.count() == 0) {
-        qDebug() << "[SelectionState] No selection";
+        // qDebug() << "[SelectionState] No selection";
         m_currentInfo = {};
         emit songSelected(nullptr, resolveThumbnail({}));
     } else {
-        qDebug() << "[SelectionState] Multi selection";
-    }
-}
-
-void SelectionState::revalidate() {
-    emit songListChanged(m_currentListItem);
-    if (m_resolvedSongs.count() == 1) {
-        qDebug() << "[SelectionState] Revalidated single selection";
-        m_currentInfo = m_resolvedSongs.constFirst()->musicInfo();
-        emit songSelected(&m_currentInfo, resolveThumbnail(m_currentInfo.thumbnailPath));
-    } else if (m_resolvedSongs.count() == 0) {
-        qDebug() << "[SelectionState] Revalidated no selection";
-        m_currentInfo = {};
-        emit songSelected(nullptr, resolveThumbnail({}));
-    } else {
-        qDebug() << "[SelectionState] Revalidated multi selection";
+        // qDebug() << "[SelectionState] Multi selection";
     }
 }
 

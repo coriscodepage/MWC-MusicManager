@@ -90,7 +90,7 @@
            </layout>
           </item>
           <item>
-           <widget class="QListView" name="listItemView">
+           <widget class="ChildListView" name="listItemView">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
               <horstretch>2</horstretch>
@@ -632,6 +632,11 @@
    <class>TargetListView</class>
    <extends>QListView</extends>
    <header>targetlistview.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ChildListView</class>
+   <extends>QListView</extends>
+   <header>childlistview.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

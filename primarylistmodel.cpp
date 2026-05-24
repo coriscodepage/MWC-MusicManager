@@ -281,3 +281,12 @@ void PrimaryListModel::removeAt(int row) {
 void PrimaryListModel::insertEmptyAt(int row, const QString &name, bool type) {
     addItem(ListItem(name, type), row);
 }
+
+void PrimaryListModel::beginMacro(const QString &name) {
+    if (m_undoStack)
+        m_undoStack->beginMacro(name);
+}
+void PrimaryListModel::endMacro() {
+    if (m_undoStack)
+        m_undoStack->endMacro();
+}

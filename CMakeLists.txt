@@ -61,6 +61,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         filemanager.h filemanager.cpp
         selectionstate.h selectionstate.cpp
         progressdialog.h progressdialog.cpp progressdialog.ui
+        childlistview.h childlistview.cpp
+
 
     )
 # Define target properties for Android with Qt 6 as:

@@ -31,8 +31,6 @@ signals:
     void songSelected(MusicInfo *info, QPixmap pixmap);
     void songListChanged(const ListItem *data);
 
-public slots:
-    void revalidate();
 };
 
 #endif // SELECTIONSTATE_H

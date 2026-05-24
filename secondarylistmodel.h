@@ -31,6 +31,8 @@ public:
     void removeAt(int row) override;
     void insertEmptyAt(int row, const QString &name, bool type) override;
     void moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) override;
+    void beginMacro(const QString &name) override;
+    void endMacro() override;
 
     const MusicItem* getSong(int row);
     const QModelIndexList &copiedIndexes() const;
@@ -39,11 +41,14 @@ public:
     const QVector<MusicItem> &getSongs() const;
     bool insertRowInternal(int row, MusicItem &item);
 
+public slots:
+    void setForceCopy(bool state);
+
 private:
     ListItem *m_list = nullptr;
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
-    mutable QModelIndexList m_draggedIndexes; // FIXME: WHAT WAS I THINKING?????
+    bool m_forceCopy;
 
     void addItemAt(const MusicItem &item, int row);
 

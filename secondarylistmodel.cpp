@@ -1,6 +1,7 @@
 #include "secondarylistmodel.h"
 #include "edittitlecommand.h"
 #include "movecommand.h"
+#include "pastecommand.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
 #include <qpixmap.h>
@@ -131,16 +132,25 @@ QMimeData *SecondaryListModel::mimeData(const QModelIndexList &indexes) const {
 
         stream << QVariant::fromValue(*(m_list->getItem(index.row())));
     }
-    m_draggedIndexes = indexes;
     mime->setData("application/x-msc-song", encoded);
     return mime;
 }
 
 bool SecondaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) {
-    if (!data->hasFormat("application/x-msc-song") || m_musicStore==nullptr)
+    static const QString format("application/x-msc-song");
+    if (!data->hasFormat(format) || m_musicStore==nullptr)
         return false;
 
-    QByteArray encoded = data->data("application/x-msc-song");
+    if (m_forceCopy) {
+        m_forceCopy = false;
+        QByteArray binary = data->data(format);
+        auto *cmd = new PasteCommand(this, binary, format, row);
+        m_undoStack->push(cmd);
+        return true;
+    }
+    m_forceCopy = false;
+
+    QByteArray encoded = data->data(format);
     QDataStream stream(&encoded, QIODevice::ReadOnly);
 
     while (!stream.atEnd()) {
@@ -155,8 +165,8 @@ bool SecondaryListModel::dropMimeData(const QMimeData *data, Qt::DropAction acti
     return true;
 }
 
-const QModelIndexList &SecondaryListModel::copiedIndexes() const {
-    return m_draggedIndexes;
+void SecondaryListModel::setForceCopy(bool state) {
+    m_forceCopy = state;
 }
 
 bool SecondaryListModel::canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column, const QModelIndex &parent) const {
@@ -302,4 +312,13 @@ void SecondaryListModel::removeAt(int row) {
 
 void SecondaryListModel::insertEmptyAt(int row, const QString &name, bool type) {
     addItemAt(MusicItem(name, nullptr), row);
+}
+
+void SecondaryListModel::beginMacro(const QString &name) {
+    if (m_undoStack)
+        m_undoStack->beginMacro(name);
+}
+void SecondaryListModel::endMacro() {
+    if (m_undoStack)
+        m_undoStack->endMacro();
 }

@@ -14,8 +14,10 @@ void TargetListView::dragMoveEvent(QDragMoveEvent *event)
         QListView::dragMoveEvent(event);
     } else {
         QModelIndex hovered = indexAt(event->position().toPoint());
-        if (hovered.isValid())
+        if (hovered.isValid()) {
             selectionModel()->setCurrentIndex(hovered, QItemSelectionModel::ClearAndSelect);
+            emit forceCopy(true);
+        }
         event->ignore();
     }
 }
@@ -29,6 +31,8 @@ void TargetListView::dropEvent(QDropEvent *event)
 {
     if (event->source() == this)
         QListView::dropEvent(event);
-    else
+    else {
+        emit forceCopy(false);
         event->ignore();
+    }
 }

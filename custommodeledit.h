@@ -12,6 +12,8 @@ public:
     virtual void removeAt(int row) = 0;
     virtual void insertEmptyAt(int row, const QString &name, bool type) = 0;
     virtual void moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) = 0;
+    virtual void beginMacro(const QString &name) = 0;
+    virtual void endMacro() = 0;
     virtual ~CustomModelEdit() = default;
 };
 

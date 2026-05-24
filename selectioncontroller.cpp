@@ -8,32 +8,32 @@ SelectionController::SelectionController(PrimaryListModel *listModel, SecondaryL
 void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     Q_UNUSED(deselected);
     if (selected.isEmpty()) {
-        qDebug() << "[SelectionController] Empty primary selection.";
+        // qDebug() << "[SelectionController] Empty primary selection.";
         m_selectionState->updateList(nullptr);
         // emit SongListChanged({}, -1);
     }
 
     if (selected.length() == 1) {
-        qDebug() << QString("[SelectionController] Primary: {%1}").arg(selected.indexes().constFirst().row());
+        // qDebug() << QString("[SelectionController] Primary: {%1}").arg(selected.indexes().constFirst().row());
         QModelIndex index = selected.indexes().constFirst();
         ListItem &data = m_listModel->getItem(index);
         m_songModel->setSource(&data);
         m_selectionState->updateList(&data);
     } else {
-        qDebug() << "[SelectionController] Multi selection.";
+        // qDebug() << "[SelectionController] Multi selection.";
     }
 }
 
 void SelectionController::handleSecondaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
     Q_UNUSED(deselected);
     if (selected.isEmpty()) {
-        qDebug() << "[SelectionController] Empty secondary selection.";
+        // qDebug() << "[SelectionController] Empty secondary selection.";
         m_selectionState->updateState(selected, {});
     }
     if (selected.length() == 1) {
-        qDebug() << QString("[SelectionController] Secondary: {%1}").arg(selected.indexes().constFirst().row());
+        // qDebug() << QString("[SelectionController] Secondary: {%1}").arg(selected.indexes().constFirst().row());
     } else {
-        qDebug() << "[SelectionController] Multi selection.";
+        // qDebug() << "[SelectionController] Multi selection.";
     }
 
     const auto indecies = selected.indexes();

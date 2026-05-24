@@ -43,7 +43,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listView->setItemDelegate(new PrimaryListDelegate());
 
     connect(m_musicStore, &MusicStorage::progressUpdate, m_progressBar, &ProgressDialog::updateProgress);
-
+    connect(ui->listView, &TargetListView::forceCopy, ui->listItemView, &ChildListView::setForceCopy);
+    connect(ui->listItemView, &ChildListView::forceCopy, m_secondarymodel, &SecondaryListModel::setForceCopy);
 
     // connect(ui->actionSetGameDir, &QAction::triggered, this, [this]() {
     //     bool res = setGameDir(true);
@@ -132,7 +133,7 @@ MainWindow::MainWindow(QWidget *parent)
                 if (rowCount == 0)
                     return;
                 int newRow = qMin(first, rowCount - 1);
-                ui->listView->setCurrentIndex(m_primarymodel->index(newRow, 0, parent));
+                ui->listView->selectionModel()->setCurrentIndex(m_primarymodel->index(newRow, 0, parent), QItemSelectionModel::ClearAndSelect);
                 ui->listView->setFocus();
                 // if (roles.count() == 0) return; // FIXME: What does this even do?
                 // if (roles.constFirst() == Qt::EditRole) setWindowModified(true); // FIXME: What does this even do?
@@ -140,7 +141,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(m_primarymodel, &QAbstractListModel::rowsInserted, this, [this](const QModelIndex &parent, int first, int last)
             {
-        ui->listView->setCurrentIndex(m_primarymodel->index(first, 0 , parent));
+        ui->listView->selectionModel()->setCurrentIndex(m_primarymodel->index(first, 0 , parent), QItemSelectionModel::ClearAndSelect);
         ui->listView->setFocus(); });
 
     connect(m_secondarymodel, &QAbstractListModel::rowsRemoved, this, [this](const QModelIndex &parent, int first, int last)
@@ -148,12 +149,12 @@ MainWindow::MainWindow(QWidget *parent)
         int rowCount = m_secondarymodel->rowCount();
         if (rowCount == 0) return;
         int newRow = qMin(first, rowCount - 1);
-        ui->listItemView->setCurrentIndex(m_secondarymodel->index(newRow, 0 , parent));
+        ui->listItemView->selectionModel()->setCurrentIndex(m_secondarymodel->index(newRow, 0 , parent), QItemSelectionModel::ClearAndSelect);
         ui->listItemView->setFocus(); });
 
     connect(m_secondarymodel, &QAbstractListModel::rowsInserted, this, [this](const QModelIndex &parent, int first, int last)
             {
-        ui->listItemView->setCurrentIndex(m_secondarymodel->index(first, 0 , parent));
+        ui->listItemView->selectionModel()->select(m_secondarymodel->index(first, 0 , parent), QItemSelectionModel::ClearAndSelect);
         ui->listItemView->setFocus(); });
 
     connect(m_insertController, &InsertController::insertedChanged, this, [this](InsertController::Drives drive, bool inserted)
@@ -249,7 +250,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listItemView->setDragEnabled(true);
     ui->listItemView->setAcceptDrops(true);
     ui->listItemView->setDropIndicatorShown(true);
-    ui->listItemView->setSelectionMode(QAbstractItemView::SingleSelection);
+    ui->listItemView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     ui->listItemView->setDefaultDropAction(Qt::MoveAction);
 
     ui->listView->setDragEnabled(true);
