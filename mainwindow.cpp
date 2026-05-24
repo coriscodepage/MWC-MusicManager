@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "cutcommand.h"
+#include "downloaddialog.h"
 #include "insertcontroller.h"
 #include "insertcommand.h"
 #include "pastecommand.h"
@@ -248,7 +249,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listItemView->setDragEnabled(true);
     ui->listItemView->setAcceptDrops(true);
     ui->listItemView->setDropIndicatorShown(true);
-    ui->listItemView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->listItemView->setSelectionMode(QAbstractItemView::SingleSelection);
     ui->listItemView->setDefaultDropAction(Qt::MoveAction);
 
     ui->listView->setDragEnabled(true);
@@ -350,8 +351,15 @@ void MainWindow::on_deleteList_clicked()
 
 void MainWindow::on_downloadItem_clicked()
 {
+    auto dialog = DownloadDialog();
+    int res = dialog.exec();
+    if (res != QDialog::Accepted)
+        return;
+
+    auto url = dialog.url();
+    int playlistsAllowed = dialog.isPlaylistsAllowed();
     m_progressBar->show();
-    const auto songList = m_musicStore->downloadMusic();
+    const auto songList = m_musicStore->downloadMusic(url, playlistsAllowed);
     if (songList.isEmpty())
     {
         qWarning() << "[MainWindow] Download failed or cancelled";
@@ -456,7 +464,7 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(ui->listView, binary, m_secondarymodel->mimeTypes().constFirst());
+        CutCommand *cmd = new CutCommand(ui->listView->model(), binary, m_secondarymodel->mimeTypes().constFirst(), ui->listView->selectionModel()->selectedIndexes());
         m_undoStack->push(cmd);
         int firstRow = list.first().row();
         int rowCount = list.count();
@@ -468,7 +476,7 @@ void MainWindow::showListContextMenu(const QPoint &pos)
         const QMimeData *data = QApplication::clipboard()->mimeData();
         QString format = data->formats().constFirst();
         QByteArray binary = data->data(format);
-        PasteCommand *cmd = new PasteCommand(ui->listView, binary, format, firstRow);
+        PasteCommand *cmd = new PasteCommand(ui->listView->model(), binary, format, firstRow);
         m_undoStack->push(cmd);
     }
     else if (res == &action6)
@@ -519,7 +527,7 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(ui->listItemView, binary, m_secondarymodel->mimeTypes().constFirst());
+        CutCommand *cmd = new CutCommand(ui->listItemView->model(), binary, m_secondarymodel->mimeTypes().constFirst(), m_selectionState->currentSelection().indexes());
         m_undoStack->push(cmd);
         int firstRow = list.first().row();
         int rowCount = list.count();
@@ -531,7 +539,7 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
         const QMimeData *data = QApplication::clipboard()->mimeData();
         QString format = data->formats().constFirst();
         QByteArray binary = data->data(format);
-        PasteCommand *cmd = new PasteCommand(ui->listItemView, binary, format, firstRow);
+        PasteCommand *cmd = new PasteCommand(ui->listItemView->model(), binary, format, firstRow);
         m_undoStack->push(cmd);
     }
 }
@@ -653,7 +661,7 @@ void MainWindow::paste()
     const QMimeData *data = QApplication::clipboard()->mimeData();
     QString format = data->formats().constFirst();
     QByteArray binary = data->data(format);
-    PasteCommand *cmd = new PasteCommand(view, binary, format);
+    PasteCommand *cmd = new PasteCommand(view->model(), binary, format);
     m_undoStack->push(cmd);
 }
 
@@ -668,7 +676,7 @@ void MainWindow::cut()
     QString format = model->mimeTypes().constFirst();
     QByteArray data = mime->data(format);
     delete mime;
-    CutCommand *cmd = new CutCommand(view, data, format);
+    CutCommand *cmd = new CutCommand(view->model(), data, format, view->selectionModel()->selectedIndexes());
     m_undoStack->push(cmd);
 }
 

@@ -7,12 +7,12 @@
 class CutCommand : public QUndoCommand
 {
 public:
-    CutCommand(QListView *view, QByteArray &data, const QString &format);
+    CutCommand(QAbstractItemModel *itemModel, QByteArray &data, const QString &format, const QModelIndexList &selectedindexes);
     void redo() override;
     void undo() override;
 
 private:
-    QListView *m_view;
+    QAbstractItemModel *m_itemModel;
     QModelIndexList m_indexes;
     QByteArray m_data;
     QString m_format;

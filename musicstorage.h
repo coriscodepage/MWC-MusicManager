@@ -13,7 +13,7 @@ class MusicStorage : public QObject
 public:
     explicit MusicStorage(QObject* parent = nullptr);
     void setMusicDir(const QDir &dir);
-    QVector<std::shared_ptr<MusicObject>> downloadMusic();
+    QVector<std::shared_ptr<MusicObject>> downloadMusic(QUrl url, int playlistsAllowed);
     std::shared_ptr<MusicObject> queryMusic(const QString &query);
     QVector<std::shared_ptr<MusicObject> > importMusic(QStringList files);
     const QHash<QString, MusicObject> getSongs();

@@ -7,11 +7,11 @@
 class PasteCommand : public QUndoCommand
 {
 public:
-    PasteCommand(QListView *view, QByteArray &data, const QString &format, int m_row = -1);
+    PasteCommand(QAbstractItemModel *itemModel, QByteArray &data, const QString &format, int m_row = -1);
     void undo() override;
     void redo() override;
 private:
-    QListView *m_view;
+    QAbstractItemModel *m_itemModel;
     QByteArray m_data;
     QByteArray m_oldData;
     int m_row;

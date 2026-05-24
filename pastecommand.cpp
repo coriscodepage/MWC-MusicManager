@@ -3,7 +3,7 @@
 #include <qfiledevice.h>
 #include <qmimedata.h>
 
-PasteCommand::PasteCommand(QListView *view, QByteArray &data, const QString &format, int row) : m_view(view), m_row(row), m_data(data), m_format(format) {
+PasteCommand::PasteCommand(QAbstractItemModel *itemModel, QByteArray &data, const QString &format, int row) : m_itemModel(itemModel), m_row(row), m_data(data), m_format(format) {
     QDataStream stream(&data, QIODevice::ReadOnly);
     m_count = 0;
     while(!stream.atEnd()) {
@@ -13,11 +13,10 @@ PasteCommand::PasteCommand(QListView *view, QByteArray &data, const QString &for
     }
 
     if (row != -1) {
-        auto model = view->model();
-        auto index = model->index(row, 0);
+        auto index = m_itemModel->index(row, 0);
         QModelIndexList list;
         list.append(index);
-        auto mime = model->mimeData(list);
+        auto mime = m_itemModel->mimeData(list);
         m_oldData = mime->data(format);
         if (format == "application/x-msc-list" && !m_oldData.isEmpty()) {
             QDataStream streamOld(&m_oldData, QIODevice::ReadOnly);
@@ -44,28 +43,23 @@ PasteCommand::PasteCommand(QListView *view, QByteArray &data, const QString &for
             m_data = encoded;
         }
     }
-    m_row = row == -1 ? view->model()->rowCount() : row;
+    m_row = row == -1 ? m_itemModel->rowCount() : row;
 }
 
 void PasteCommand::undo() {
-    auto model = m_view->model();
-    model->removeRows(m_row, m_count);
+    m_itemModel->removeRows(m_row, m_count);
     if(!m_oldData.isEmpty()) {
         QMimeData mime;
         mime.setData(m_format, m_oldData);
-        model->dropMimeData(&mime, Qt::CopyAction, m_row, 0, QModelIndex());
-        m_view->setCurrentIndex(m_view->model()->index(m_row, 0));
-    } else
-        m_view->setCurrentIndex(m_view->model()->index(m_row - 1, 0));
+        m_itemModel->dropMimeData(&mime, Qt::CopyAction, m_row, 0, QModelIndex());
+    }
 }
 
 void PasteCommand::redo() {
-    auto model = m_view->model();
     QMimeData mime;
     mime.setData(m_format, m_data);
     if(!m_oldData.isEmpty()) {
-        m_view->model()->removeRows(m_row, m_count);
+        m_itemModel->removeRows(m_row, m_count);
     }
-    model->dropMimeData(&mime, Qt::CopyAction, m_row, 0, QModelIndex());
-    m_view->setCurrentIndex(m_view->model()->index(m_row, 0));
+    m_itemModel->dropMimeData(&mime, Qt::CopyAction, m_row, 0, QModelIndex());
 }

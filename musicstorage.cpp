@@ -77,15 +77,8 @@ bool MusicStorage::prepareSongDir(QDir &songDir, const QString &hashValue)
 }
 
 /// Open dialog. Get the url, check if youtube like and make a hash value for the folder name.
-QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic()
+QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QUrl url, int playlistsAllowed)
 {
-    auto dialog = DownloadDialog();
-    int res = dialog.exec();
-    if (res != QDialog::Accepted)
-        return {};
-
-    auto url = dialog.url();
-    int playlistsAllowed = dialog.isPlaylistsAllowed();
     QString hashValue = resolveHash(url);
 
     if (auto result = queryMusic(hashValue))
