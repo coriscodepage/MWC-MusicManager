@@ -43,11 +43,6 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &
     QStringList argumentsCheck = arguments;
     argumentsCheck << "--skip-download" << "--print-json";
     argumentsDownload << "-o" << ytdlpPath << "--newline";
-    // QProgressDialog *progress = new QProgressDialog(tr("Downloading..."), tr("Abort Download"), 0, 100, parent);
-    // progress->setWindowModality(Qt::ApplicationModal);
-    // progress->setMinimumDuration(0);
-    // progress->setValue(50);
-    // progress->show();
     connect(m_process, &QProcess::finished, this, [this, path, hash, argumentsDownload](int exitCode, QProcess::ExitStatus status)
             {
 

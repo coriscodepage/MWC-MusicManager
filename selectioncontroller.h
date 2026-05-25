@@ -15,7 +15,7 @@ public:
 
 public slots:
     void handlePrimaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
-    void handleSecondaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+    void handleSecondaryListSelectionChanged(const QItemSelection &selected);
 
 private:
     PrimaryListModel *m_listModel;

@@ -27,7 +27,10 @@ public:
     bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
     bool moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) override;
     void setField(int field, const QString &value, const QModelIndex &index) override;
-    QString getField(int field, const QModelIndex &index) override;
+    QString getField(int field, const QModelIndex &index) const override;
+    const QVariant getSelf(QModelIndexList indexes) const override;
+    const QVector<QVariant> getDependent() const override;
+    void restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) override;
     void removeAt(int row) override;
     void insertEmptyAt(int row, const QString &name, bool type) override;
     void moveInternal(const QVector<QVariant> &movingItems, int sourceRow, int count, int destinationChild) override;

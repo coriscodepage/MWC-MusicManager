@@ -26,7 +26,6 @@ public:
     };
     explicit LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent = nullptr);
     void loadAppData();
-    void importDirectory(int type);
     void handleDirecorySelected(DirType type, const QString path);
 
 private:

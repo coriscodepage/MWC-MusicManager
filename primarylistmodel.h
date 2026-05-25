@@ -33,7 +33,10 @@ public:
     void setField(int field, const QString &value, const QModelIndex &index) override;
     void removeAt(int row) override;
     void insertEmptyAt(int row, const QString &name, bool type) override;
-    QString getField(int field, const QModelIndex &index) override;
+    QString getField(int field, const QModelIndex &index) const override;
+    const QVariant getSelf(QModelIndexList indexes) const override;
+    const QVector<QVariant> getDependent() const override;
+    void restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) override;
 
     void addItem(const ListItem &item, int index = -1);
     void removeItem(const QModelIndex &index);
@@ -45,7 +48,6 @@ public:
 
 private:
     QVector<ListItem> m_items;
-    mutable QModelIndexList m_draggedIndexes;
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
     SelectionState *m_selectionState;

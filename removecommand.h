@@ -1,22 +1,21 @@
 #ifndef REMOVECOMMAND_H
 #define REMOVECOMMAND_H
 
-#include "secondarylistmodel.h"
+#include "custommodeledit.h"
 #include <QUndoCommand>
 #include <qlistview.h>
 
 class RemoveCommand : public QUndoCommand
 {
 public:
-    RemoveCommand(QListView *view, int row, SecondaryListModel *secondaryModel = nullptr, QUndoCommand *parent = nullptr);
+    RemoveCommand(CustomModelEdit *itemModel, QModelIndexList indexes, QUndoCommand *parent = nullptr);
     void undo() override;
     void redo() override;
 
 private:
-    QListView *m_view;
-    SecondaryListModel *m_secondaryModel;
-    QByteArray m_data;
-    QString m_format;
+    CustomModelEdit *m_itemModel;
+    QVariant m_data;
+    QModelIndexList m_indexes;
     int m_row;
 };
 

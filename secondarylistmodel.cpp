@@ -291,7 +291,7 @@ void SecondaryListModel::setField(int field, const QString &value, const QModelI
     emit dataChanged(index, index, {Qt::EditRole});
 }
 
-QString SecondaryListModel::getField(int field, const QModelIndex &index) {
+QString SecondaryListModel::getField(int field, const QModelIndex &index) const {
     if (m_list == nullptr) return {};
     auto *item = m_list->getItem(index.row());
     switch (field) {
@@ -321,4 +321,32 @@ void SecondaryListModel::beginMacro(const QString &name) {
 void SecondaryListModel::endMacro() {
     if (m_undoStack)
         m_undoStack->endMacro();
+}
+
+const QVariant SecondaryListModel::getSelf(QModelIndexList indexes) const {
+    QVector<MusicItem> data;
+    for (const auto &index : indexes) {
+        auto item = *(m_list->getItem(index.row()));
+        item.setSong(nullptr);
+        data.push_back(item);
+    }
+    return QVariant::fromValue(data);
+}
+
+const QVector<QVariant> SecondaryListModel::getDependent() const {
+    return {};
+}
+
+void SecondaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) {
+    auto items = selfData.value<QVector<MusicItem>>();
+    m_undoStack->beginMacro(tr("Redo"));
+    for (int i = 0; i < indexes.length(); i++) {
+        auto &item = items[i];
+        const auto row = indexes.at(i).row();
+        QString hash = item.getHash();
+        auto songPtr = m_musicStore->queryMusic(hash);
+        item.setSong(songPtr);
+        addItemAt(item, row);
+    }
+    m_undoStack->endMacro();
 }

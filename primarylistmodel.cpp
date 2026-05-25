@@ -147,7 +147,7 @@ QMimeData* PrimaryListModel::mimeData(const QModelIndexList &indexes) const {
             continue;
         stream << QVariant::fromValue(m_items[index.row()]);
     }
-    m_draggedIndexes = indexes;
+    // m_draggedIndexes = indexes;
     mime->setData("application/x-msc-list", encoded);
     return mime;
 }
@@ -268,7 +268,7 @@ void PrimaryListModel::setField(int field, const QString &value, const QModelInd
     }
 }
 
-QString PrimaryListModel::getField(int field, const QModelIndex &index) {
+QString PrimaryListModel::getField(int field, const QModelIndex &index) const {
     if(!index.isValid()) return {};
     if (field == 0)
         return m_items.at(index.row()).title();
@@ -276,6 +276,8 @@ QString PrimaryListModel::getField(int field, const QModelIndex &index) {
 }
 
 void PrimaryListModel::removeAt(int row) {
+    for(auto &song : m_items[row].getItems())
+        song.setSong(nullptr);
     removeRow(row);
 }
 void PrimaryListModel::insertEmptyAt(int row, const QString &name, bool type) {
@@ -289,4 +291,34 @@ void PrimaryListModel::beginMacro(const QString &name) {
 void PrimaryListModel::endMacro() {
     if (m_undoStack)
         m_undoStack->endMacro();
+}
+
+const QVariant PrimaryListModel::getSelf(QModelIndexList indexes) const {
+    QVector<ListItem> data;
+    for (const auto &index : indexes) {
+        auto item = m_items.at(index.row());
+        for(auto &song : item.getItems())
+            song.setSong(nullptr);
+        data.push_back(item);
+    }
+    return QVariant::fromValue(data);
+}
+const QVector<QVariant> PrimaryListModel::getDependent() const {
+    return {};
+}
+
+void PrimaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) {
+    auto items = selfData.value<QVector<ListItem>>();
+    m_undoStack->beginMacro(tr("Redo"));
+    for (int i = 0; i < indexes.length(); i++) {
+        auto &item = items[i];
+        const auto row = indexes.at(i).row();
+        for (auto &s : item.getItems()) {
+            QString hash = s.getHash();
+            auto songPtr = m_musicStore->queryMusic(hash);
+            s.setSong(songPtr);
+        }
+        insertAt(item, row);
+    }
+    m_undoStack->endMacro();
 }

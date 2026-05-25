@@ -24,8 +24,7 @@ void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection
     }
 }
 
-void SelectionController::handleSecondaryListSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected) {
-    Q_UNUSED(deselected);
+void SelectionController::handleSecondaryListSelectionChanged(const QItemSelection &selected) {
     if (selected.isEmpty()) {
         // qDebug() << "[SelectionController] Empty secondary selection.";
         m_selectionState->updateState(selected, {});

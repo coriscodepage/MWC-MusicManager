@@ -191,8 +191,10 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QStringList file
     if (files.isEmpty()) return {};
     qDebug() << QString("[MusicStorage] Importing %1 files").arg(files.count());
     QQueue<QString> queue;
-    for (const auto &f : std::as_const(files))
-        queue.enqueue(f);
+    for (const auto &f : std::as_const(files)) {
+        if (QFileInfo(f).isFile())
+            queue.enqueue(f);
+    }
 
     auto musicDir = FileManager::getInstance().getMusicPath();
     QString tmpFolder = QString("tmp%1").arg(QDateTime::currentSecsSinceEpoch());
@@ -284,18 +286,20 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
 {
     m_canceled = false;
     QProcess *process = new QProcess(this);
-    QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100);
-    progress->setWindowModality(Qt::ApplicationModal);
-    progress->setMinimumDuration(0);
-    progress->setValue(50);
-    progress->show();
+    // QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100);
+    // progress->setWindowModality(Qt::ApplicationModal);
+    // progress->setMinimumDuration(0);
+    // progress->setValue(0);
+    // progress->setMinimum(0);
+    // progress->setMaximum(0);
+    // progress->show();
 
-    connect(progress, &QProgressDialog::canceled, this, [this, process, progress]()
-            {
-        if (process)
-            process->kill();
-        m_canceled = true;
-        progress->setValue(100); }, Qt::SingleShotConnection);
+    // connect(progress, &QProgressDialog::canceled, this, [this, process, progress]()
+    //         {
+    //     if (process)
+    //         process->kill();
+    //     m_canceled = true;
+    //     progress->setValue(100); }, Qt::SingleShotConnection);
 
     QEventLoop loop; // INFO: Sync wait, non blocking.
     connect(this, &MusicStorage::conversionFinished, &loop, &QEventLoop::quit);
@@ -331,9 +335,9 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
     disconnect(this, &MusicStorage::conversionFinished, &loop, &QEventLoop::quit);
     if (m_canceled)
         m_addedFiles.clear();
-    progress->setValue(100);
+    // progress->setValue(100);
     process->deleteLater();
-    progress->deleteLater();
+    // progress->deleteLater();
     m_canceled = false;
 }
 
