@@ -58,7 +58,7 @@ QString MusicStorage::resolveHash(const QUrl &url)
 
 bool MusicStorage::prepareSongDir(QDir &songDir, const QString &hashValue)
 {
-    auto musicDir = FileManager::getInstance().getMusicPath();
+    auto musicDir = QDir(FileManager::getInstance().getMusicPath());
     if (musicDir.exists(hashValue))
     {
         qWarning() << "[MusicStorage] Song directory already exists, removing:" << hashValue;
@@ -121,7 +121,7 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QUrl url, int 
                 auto storagePath = songDir;
                 auto songName = object->songName();
                 auto thumbnailName = object->thumbnailName();
-                auto musicDir = FileManager::getInstance().getMusicPath();
+                auto musicDir = QDir(FileManager::getInstance().getMusicPath());
                 if(!musicDir.mkpath(musicDir.absoluteFilePath(object->getHash())))
                     qWarning() << "[MusicStorage] Path creation failed";
                 else {
@@ -196,7 +196,7 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QStringList file
             queue.enqueue(f);
     }
 
-    auto musicDir = FileManager::getInstance().getMusicPath();
+    auto musicDir = QDir(FileManager::getInstance().getMusicPath());
     QString tmpFolder = QString("tmp%1").arg(QDateTime::currentSecsSinceEpoch());
     if (!musicDir.mkpath(tmpFolder))
     {

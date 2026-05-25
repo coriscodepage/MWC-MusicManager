@@ -24,9 +24,9 @@ private:
     // We can use the better technique of deleting the methods
     // we don't want.
 
-    QDir m_gamePath;
-    QDir m_musicPath;
-    QDir m_appPath;
+    QString m_gamePath;
+    QString m_musicPath;
+    QString m_appPath;
     QString m_appSaveName;
 
 public:
@@ -40,13 +40,13 @@ public:
 
     void copySongsToDrive(const QVector<MusicItem> &songs, const InsertController::Drives drive);
     QByteArray loadSaveFile();
-    void setGamePath(QDir path);
-    void setMusicPath(QDir path);
-    void setAppPath(QDir path);
+    void setGamePath(QString path);
+    void setMusicPath(QString path);
+    void setAppPath(QString path);
     void setSaveName(QString name);
-    const QDir &getGamePath() const;
-    const QDir &getMusicPath() const;
-    const QDir &getAppPath() const;
+    const QString &getGamePath() const;
+    const QString &getMusicPath() const;
+    const QString &getAppPath() const;
     const QString &getSaveName() const;
 
 };

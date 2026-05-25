@@ -72,7 +72,7 @@ private:
     void cut();
     void paste();
     void showInfoBox(const QString &message);
-    void showWarningBox(const QString &message);
+    void showWarningBox(const QString &message, bool exit = false);
     void showErrorBox(const QString &message);
     QString getDir(LibraryController::DirType type);
     // bool setMusicDir(bool exp);

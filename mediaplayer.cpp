@@ -15,6 +15,9 @@ MediaPlayer::MediaPlayer(const SelectionState *selectionState, QObject *parent)
             emit playState(true);
         }
     });
+    connect(m_mediaPlayer, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
+        emit positionChanged(m_mediaPlayer->duration(), position);
+    });
 }
 
 void MediaPlayer::changeSong() {
@@ -28,6 +31,7 @@ void MediaPlayer::changeSong() {
     emit labelChanged(title);
     play();
 }
+
 void MediaPlayer::play() {
     if (m_currentSong == nullptr) return;
     m_mediaPlayer->play();
@@ -35,12 +39,26 @@ void MediaPlayer::play() {
     emit pauseState(true);
     emit playState(false);
 }
+
 void MediaPlayer::pause() {
     m_mediaPlayer->pause();
     emit stopState(true);
     emit pauseState(false);
     emit playState(true);
 }
+
 void MediaPlayer::stop() {
     m_mediaPlayer->stop();
+}
+
+void MediaPlayer::checkIfDeleted(const QString &hash) {
+    if (!m_currentSong) return;
+    if (m_currentSong->getHash() != hash) return;
+    m_mediaPlayer->stop();
+    m_mediaPlayer->setSource({});
+    emit stopState(false);
+    emit pauseState(false);
+    emit playState(false);
+    emit labelChanged({});
+    emit positionChanged(-1, -1);
 }

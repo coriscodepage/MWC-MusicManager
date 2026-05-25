@@ -18,11 +18,13 @@ public slots:
     void play();
     void pause();
     void stop();
+    void checkIfDeleted(const QString &hash);
 signals:
     void labelChanged(const QString& label);
     void playState(bool state);
     void pauseState(bool state);
     void stopState(bool state);
+    void positionChanged(qint64 duration, qint64 position);
 
 private:
     QMediaPlayer *m_mediaPlayer;

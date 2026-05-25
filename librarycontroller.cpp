@@ -6,12 +6,11 @@
 
 LibraryController::LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, InsertController *insertController, QUndoStack *undoStack, QObject *parent)
     : QObject{parent}, m_listModel(listModel), m_songModel(songModel), m_selectionState(selectionState), m_musicStore(musicStore), m_insertController(insertController), m_undoStack(undoStack)
-{
-    prepareDirectories();
-}
+{}
 
 void LibraryController::loadAppData()
 {
+    prepareDirectories();
     auto data = FileManager::getInstance().loadSaveFile();
     QDataStream in(&data, QIODevice::ReadOnly);
     QVector<ListItem> primaryList;
@@ -67,16 +66,16 @@ void LibraryController::handleDirecorySelected(DirType type, const QString path)
             if (entries.contains("mysummercar.exe") || entries.contains("mywintercar.exe"))
             {
                 settings.setValue("gamedir", QVariant::fromValue(dir.absolutePath()));
-                FileManager::getInstance().setGamePath(dir);
+                FileManager::getInstance().setGamePath(path);
             }
             else
             {
-                emit directoryInvalid(type, FileManager::getInstance().getGamePath().absolutePath().isEmpty());
+                emit directoryInvalid(type, QDir(FileManager::getInstance().getGamePath()).absolutePath().isEmpty());
             }
         }
         else
         {
-            emit directoryInvalid(type, FileManager::getInstance().getGamePath().absolutePath().isEmpty());
+            emit directoryInvalid(type, QDir(FileManager::getInstance().getGamePath()).absolutePath().isEmpty());
         }
         break;
     case APP:
@@ -86,24 +85,24 @@ void LibraryController::handleDirecorySelected(DirType type, const QString path)
             if (info.isFile())
             {
                 settings.setValue("saveLocation", QVariant::fromValue(info.absoluteFilePath()));
-                FileManager::getInstance().setAppPath(info.dir());
+                FileManager::getInstance().setAppPath(info.dir().absolutePath());
                 FileManager::getInstance().setSaveName(info.fileName());
             }
             else if (info.isDir())
             {
                 const QDir appDir(info.absoluteFilePath());
                 settings.setValue("saveLocation", QVariant::fromValue(appDir.absoluteFilePath("save.msc")));
-                FileManager::getInstance().setAppPath(appDir);
+                FileManager::getInstance().setAppPath(info.absoluteFilePath());
                 FileManager::getInstance().setSaveName("save.msc");
             }
             else
             {
-                emit directoryInvalid(type, FileManager::getInstance().getAppPath().absolutePath().isEmpty());
+                emit directoryInvalid(type, FileManager::getInstance().getAppPath().isEmpty());
             }
         }
         else
         {
-            emit directoryInvalid(type, FileManager::getInstance().getAppPath().absolutePath().isEmpty());
+            emit directoryInvalid(type, FileManager::getInstance().getAppPath().isEmpty());
         }
         break;
     case MUSIC:
@@ -114,7 +113,7 @@ void LibraryController::handleDirecorySelected(DirType type, const QString path)
         }
         else
         {
-            emit directoryInvalid(type, FileManager::getInstance().getMusicPath().absolutePath().isEmpty());
+            emit directoryInvalid(type, FileManager::getInstance().getMusicPath().isEmpty());
         }
         break;
     case CUSTOM:
@@ -135,7 +134,7 @@ void LibraryController::prepareDirectories()
         auto path = settings.value("gamedir").toString();
         if (!path.isEmpty() && QDir(path).exists())
         {
-            FileManager::getInstance().setGamePath(QDir(path));
+            FileManager::getInstance().setGamePath(path);
         }
         else
         {
@@ -152,12 +151,19 @@ void LibraryController::prepareDirectories()
         auto path = settings.value("musicdir").toString();
         if (!path.isEmpty() && QDir(path).exists())
         {
-            FileManager::getInstance().setMusicPath(QDir(path));
-            settings.setValue("musicdir", QVariant::fromValue(path));
+            FileManager::getInstance().setMusicPath(path);
         }
         else
         {
             emit getDirectory(DirType::MUSIC);
+        }
+    }
+    else if (settings.contains("gamedir"))
+    {
+        auto path = settings.value("gamedir").toString();
+        if (!path.isEmpty() && QDir(path).exists())
+        {
+            FileManager::getInstance().setMusicPath(path);
         }
     }
     else
@@ -175,17 +181,16 @@ void LibraryController::prepareDirectories()
         }
         else
         {
-            FileManager::getInstance().setAppPath(info.dir());
+            FileManager::getInstance().setAppPath(info.dir().absolutePath());
             FileManager::getInstance().setSaveName(info.fileName());
         }
     }
-    else
+    else if (settings.contains("gamedir"))
     {
-        if (settings.contains("gamedir"))
-        {
             auto path = settings.value("gamedir").toString();
             settings.setValue("saveLocation", QVariant::fromValue(QDir(path).absoluteFilePath("save.msc")));
-        }
+    } else {
+        emit getDirectory(DirType::APP);
     }
 
     // setUiEnabled(false);
@@ -199,7 +204,7 @@ void LibraryController::prepareDirectories()
 void LibraryController::saveAppData() {
 // if (!m_appSave.isFile()) setSaveFile(true, false);
 // if (!m_appSave.isFile()) m_appSave = QFileInfo(m_gameDir.absoluteFilePath("save.msc"));
-QFileInfo savePath = QFileInfo(FileManager::getInstance().getAppPath().absoluteFilePath(FileManager::getInstance().getSaveName()));
+QFileInfo savePath = QFileInfo(QDir(FileManager::getInstance().getAppPath()).absoluteFilePath(FileManager::getInstance().getSaveName()));
 qDebug() << "[MainWindow] Save start";
 qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
 QFile file(savePath.absoluteFilePath());
@@ -213,7 +218,7 @@ m_undoStack->clear();
 out << primaryItems;
 out << songs;
 out << insertedList;
-out << FileManager::getInstance().getMusicPath().absolutePath();
+out << QDir(FileManager::getInstance().getMusicPath()).absolutePath();
 qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
 }
 

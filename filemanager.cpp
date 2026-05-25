@@ -34,22 +34,22 @@ QByteArray FileManager::loadSaveFile() {
         return {};
     }
     qDebug() << "[FileManager] Load start";
-    QFile file(m_appPath.filePath(m_appSaveName));
+    QFile file(QDir(m_appPath).filePath(m_appSaveName));
 
     if (!file.open(QIODevice::ReadOnly))
         return {};
     return file.readAll();
 }
 
-void FileManager::setGamePath(QDir path) {
+void FileManager::setGamePath(QString path) {
     m_gamePath = path;
 }
 
-void FileManager::setMusicPath(QDir path) {
+void FileManager::setMusicPath(QString path) {
     m_musicPath = path;
 }
 
-void FileManager::setAppPath(QDir path) {
+void FileManager::setAppPath(QString path) {
     m_appPath = path;
 }
 
@@ -57,13 +57,13 @@ void FileManager::setSaveName(QString name) {
     m_appSaveName = name;
 }
 
-const QDir &FileManager::getGamePath() const {
+const QString &FileManager::getGamePath() const {
     return m_gamePath;
 }
-const QDir &FileManager::getMusicPath() const {
+const QString &FileManager::getMusicPath() const {
     return m_musicPath;
 }
-const QDir &FileManager::getAppPath() const {
+const QString &FileManager::getAppPath() const {
     return m_appPath;
 }
 

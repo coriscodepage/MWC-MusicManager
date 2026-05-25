@@ -137,6 +137,7 @@ MainWindow::MainWindow(QWidget *parent)
     //         // handlePrimaryListSelectionChanged(QModelIndex(), QModelIndex());
     //     }
     // }); // FIXME: MOVE THIS INTO A CONTROLLER WHAT EVEN IS THIS????
+
     connect(m_primarymodel, &QAbstractListModel::rowsRemoved, this, [this](const QModelIndex &parent, int first, int last)
             {
                 int rowCount = m_primarymodel->rowCount();
@@ -172,6 +173,22 @@ MainWindow::MainWindow(QWidget *parent)
         ui->listItemView->setFocus();
     });
 
+    connect(m_primarymodel, &QAbstractItemModel::rowsAboutToBeRemoved, this, [this](const QModelIndex &parent, int first, int last) {
+        for (int i = qMin(first, last); i <= qMax(first, last); i++) {
+            for (const auto &item : std::as_const(m_primarymodel->getItem(m_primarymodel->index(i)).getItems())) {
+                m_mediaPlayer->checkIfDeleted(item.getHash());
+            }
+        }
+    });
+
+    connect(m_secondarymodel, &QAbstractItemModel::rowsAboutToBeRemoved, this, [this](const QModelIndex &parent, int first, int last) {
+        for (int i = qMin(first, last); i <= qMax(first, last); i++) {
+            for (const auto &item : std::as_const(m_secondarymodel->getItem()->getItems())) {
+                m_mediaPlayer->checkIfDeleted(item.getHash());
+            }
+        }
+    });
+
     connect(m_insertController, &InsertController::insertedChanged, this, [this](InsertController::Drives drive, bool inserted)
             {
         switch(drive) {
@@ -189,7 +206,6 @@ MainWindow::MainWindow(QWidget *parent)
             break;
         }
         m_primarymodel->revalidate(ui->listView->selectionModel()->selectedRows().constFirst().row());
-        // m_stickyModified = true;
     });
 
     QSignalMapper *signalMapperInsert = new QSignalMapper(this);
@@ -199,7 +215,11 @@ MainWindow::MainWindow(QWidget *parent)
         connect(button, &QPushButton::clicked, signalMapperInsert, qOverload<>(&QSignalMapper::map));
         signalMapperInsert->setMapping(button, i++);
     }
-    connect(signalMapperInsert, &QSignalMapper::mappedInt, m_insertController, &InsertController::insert);
+    connect(signalMapperInsert, &QSignalMapper::mappedInt, this, [this](int index) {
+        m_insertController->insert(index);
+        setWindowModified(true);
+        m_stickyModified = true;
+    });
 
     ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listView, &QListView::customContextMenuRequested, this, &MainWindow::showListContextMenu);
@@ -228,22 +248,23 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_libraryController, &LibraryController::getDirectory, this, [this](LibraryController::DirType type)
             {
         const QString dir = getDir(type);
-        m_libraryController->handleDirecorySelected(type, dir); });
+        m_libraryController->handleDirecorySelected(type, dir);
+    });
 
     connect(m_libraryController, &LibraryController::directoryInvalid, this, [this](LibraryController::DirType type, bool retry)
             {
         switch (type) {
         case LibraryController::GAME:
-            showWarningBox(tr("Select a valid game directory containing mysummercar.exe or mywintercar.exe."));
+            showWarningBox(tr("Select a valid game directory containing mysummercar.exe or mywintercar.exe."), retry);
             break;
         case LibraryController::APP:
-            showWarningBox(tr("Select a valid save file or a directory where save.msc can be stored."));
+            showWarningBox(tr("Select a valid save file or a directory where save.msc can be stored."), retry);
             break;
         case LibraryController::MUSIC:
-            showWarningBox(tr("Select a valid music directory."));
+            showWarningBox(tr("Select a valid music directory."), retry);
             break;
         case LibraryController::CUSTOM:
-            showWarningBox(tr("Select a valid directory."));
+            showWarningBox(tr("Select a valid directory."), retry);
             break;
         }
 
@@ -251,6 +272,17 @@ MainWindow::MainWindow(QWidget *parent)
             const QString dir = getDir(type);
             m_libraryController->handleDirecorySelected(type, dir);
         } });
+
+    connect(m_mediaPlayer, &MediaPlayer::positionChanged, this, [this](qint64 duration, qint64 position) {
+        auto format = [](qint64 ms) -> QString {
+            qint64 s = ms / 1000;
+            return QString("%1:%2")
+                .arg(s / 60, 2, 10, QChar('0'))
+                .arg(s % 60, 2, 10, QChar('0'));
+        };
+        QString labelText = QString("%1 / %2").arg(format(position), format(duration));
+        ui->durationPlayer->setText(labelText);
+    });
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean)
             {
@@ -427,9 +459,16 @@ void MainWindow::showInfoBox(const QString &message)
     QMessageBox::information(this, tr("Information"), message);
 }
 
-void MainWindow::showWarningBox(const QString &message)
+void MainWindow::showWarningBox(const QString &message, bool exit)
 {
-    QMessageBox::warning(this, tr("Warning"), message);
+    if (exit) {
+        int ret = QMessageBox::warning(this, tr("Warning"), message, QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
+        if (ret == QMessageBox::Cancel) {
+            qApp->exit();
+        }
+    } else {
+        QMessageBox::warning(this, tr("Warning"), message);
+    }
 }
 
 void MainWindow::showErrorBox(const QString &message)

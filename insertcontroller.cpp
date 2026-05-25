@@ -81,6 +81,8 @@ void InsertController::setInserted(QVector<QString> inserted) {
         m_inserted[i] = inserted[i];
         // revalidateInsert(m_inserted[i]);
     }
+    QVector<QString> ins(std::begin(m_inserted), std::end(m_inserted));
+    m_selectionState->setInserted(ins);
 }
 
 QVector<QString> InsertController::getAllInserted() {

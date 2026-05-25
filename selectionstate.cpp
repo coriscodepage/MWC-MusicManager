@@ -66,7 +66,7 @@ void SelectionState::updateList(const ListItem *data) {
 QPixmap SelectionState::resolveThumbnail(const QString &path) {
     static const QPixmap empty(":/defaults/no-image.webp");
     QPixmap pixmap = empty;
-    if (!path.isEmpty()) {
+    if (!path.isEmpty() && QFileInfo(path).isFile()) {
         pixmap = QPixmap(path);
     }
     return pixmap;
