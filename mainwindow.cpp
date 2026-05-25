@@ -86,6 +86,17 @@ MainWindow::MainWindow(QWidget *parent)
     }
     connect(signalMapperImport, &QSignalMapper::mappedInt, this, &MainWindow::importDirectory);
 
+    QSignalMapper *signalMapperDirs = new QSignalMapper(this);
+    i = 0;
+    for (QAction *action : {ui->actionSetGameDir, ui->actionSetAppDir, ui->actionSetMusicDir})
+    {
+        connect(action, &QAction::triggered, signalMapperDirs, qOverload<>(&QSignalMapper::map));
+        signalMapperDirs->setMapping(action, i++);
+    }
+    connect(signalMapperDirs, &QSignalMapper::mappedInt, this, [this](int index){
+        emit m_libraryController->getDirectory(static_cast<LibraryController::DirType>(index));
+    });
+
     connect(ui->listView->selectionModel(), &QItemSelectionModel::selectionChanged, m_selectionController, &SelectionController::handlePrimaryListSelectionChanged);
     connect(ui->listItemView->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection &selected) {
         QModelIndexList indexes = ui->listItemView->selectionModel()->selectedRows();
@@ -183,9 +194,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(m_secondarymodel, &QAbstractItemModel::rowsAboutToBeRemoved, this, [this](const QModelIndex &parent, int first, int last) {
         for (int i = qMin(first, last); i <= qMax(first, last); i++) {
-            for (const auto &item : std::as_const(m_secondarymodel->getItem()->getItems())) {
-                m_mediaPlayer->checkIfDeleted(item.getHash());
-            }
+            const auto item = m_secondarymodel->getSong(i);
+            m_mediaPlayer->checkIfDeleted(item->getHash());
         }
     });
 

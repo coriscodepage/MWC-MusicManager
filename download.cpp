@@ -86,7 +86,8 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &
                             const QString etaText = etaMatch.captured(1);
                             int percent = fullPercent + percentText.toDouble() / count;
                             qDebug() << "Progress:" << percentText << totalMatch.captured(1) << speedMatch.captured(1) << etaMatch.captured(1);
-                            fullPercent += 100 / count;
+                            if (percentText.toDouble() >= 100.0)
+                                fullPercent += 100 / count;
                             emit progressUpdate(percent, currentName, totalText, speedText, etaText);
                         } else {
                             qDebug() << "Progress line:" << line;
