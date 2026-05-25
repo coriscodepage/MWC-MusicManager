@@ -25,7 +25,7 @@ int SecondaryListModel::columnCount(const QModelIndex &parent) const {
 }
 
 QVariant SecondaryListModel::data(const QModelIndex &index, int role) const {
-    if (!index.isValid() || index.row() >= m_list->itemCount() || m_list == nullptr)
+    if (!index.isValid() || m_list == nullptr || index.row() >= m_list->itemCount())
         return QVariant();
 
     if (role == Qt::DisplayRole || role == Qt::EditRole) {
@@ -63,7 +63,7 @@ bool SecondaryListModel::setData(const QModelIndex &index, const QVariant &value
 
 bool SecondaryListModel::removeRows(int row, int count, const QModelIndex &parent) {
     Q_UNUSED(parent)
-    if (m_list == nullptr || row < 0 || row >= m_list->itemCount() || count <= 0) return false;
+    if (m_list == nullptr || row < 0 || row >= m_list->itemCount() || count <= 0 || row + count > m_list->itemCount()) return false;
     qDebug() << QString("[SecondaryListModel] Removing %1 row(s) starting from %2 in %3 list").arg(count).arg(row).arg(m_list->title());
     beginRemoveRows(QModelIndex(), row, row + count - 1);
     for (int i = row + count - 1; i >= row; i--) {
@@ -98,7 +98,7 @@ bool SecondaryListModel::insertRowInternal(int row, MusicItem &item) {
 
 void SecondaryListModel::addItemAt(const MusicItem &item, int row) {
     if (m_list == nullptr) return;
-    if (row < 0) row = m_list->itemCount();
+    if (row < 0 || row > m_list->itemCount()) row = m_list->itemCount();
     beginInsertRows(QModelIndex(), row, row);
     m_list->addItem(item, row);
     endInsertRows();
@@ -128,11 +128,14 @@ QMimeData *SecondaryListModel::mimeData(const QModelIndexList &indexes) const {
     QByteArray encoded;
     QDataStream stream(&encoded, QIODevice::WriteOnly);
 
-    for (const QModelIndex &index : indexes) {
+    if (m_list != nullptr) for (const QModelIndex &index : indexes) {
         if (!index.isValid())
             continue;
+        const auto item = m_list->getItem(index.row());
+        if (!item)
+            continue;
 
-        stream << QVariant::fromValue(*(m_list->getItem(index.row())));
+        stream << QVariant::fromValue(*item);
     }
     mime->setData("application/x-msc-song", encoded);
     return mime;
@@ -194,10 +197,12 @@ bool SecondaryListModel::canDropMimeData(const QMimeData *data, Qt::DropAction a
 bool SecondaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, int count, const QModelIndex &destinationParent, int destinationChild) {
     if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
         return false;
+    if (destinationChild >= sourceRow && destinationChild <= sourceRow + count)
+        return false;
 
     QVector<QVariant> movingItems;
     for (int i = 0; i < count; ++i)
-        movingItems.append(QVariant::fromValue(m_list->getItems().at(sourceRow)));
+        movingItems.append(QVariant::fromValue(m_list->getItems().at(sourceRow + i)));
 
     MoveCommand *cmd = new MoveCommand(this, movingItems, sourceRow, count, destinationChild);
     m_undoStack->push(cmd);
@@ -281,6 +286,7 @@ const MusicItem* SecondaryListModel::getSong(int row) {
 void SecondaryListModel::setField(int field, const QString &value, const QModelIndex &index) {
     if (m_list == nullptr) return;
     auto *item = m_list->getItem(index.row());
+    if (!item) return;
     switch (field) {
     case 0:
         item->setTitle(value);
@@ -296,6 +302,7 @@ void SecondaryListModel::setField(int field, const QString &value, const QModelI
 QString SecondaryListModel::getField(int field, const QModelIndex &index) const {
     if (m_list == nullptr) return {};
     auto *item = m_list->getItem(index.row());
+    if (!item) return {};
     switch (field) {
     case 0:
         return item->title();
@@ -327,8 +334,13 @@ void SecondaryListModel::endMacro() {
 
 const QVariant SecondaryListModel::getSelf(QModelIndexList indexes) const {
     QVector<MusicItem> data;
+    if (m_list == nullptr)
+        return QVariant::fromValue(data);
     for (const auto &index : indexes) {
-        auto item = *(m_list->getItem(index.row()));
+        auto sourceItem = m_list->getItem(index.row());
+        if (!sourceItem)
+            continue;
+        auto item = *sourceItem;
         item.setSong(nullptr);
         data.push_back(item);
     }
@@ -342,7 +354,7 @@ const QVector<QVariant> SecondaryListModel::getDependent() const {
 void SecondaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) {
     auto items = selfData.value<QVector<MusicItem>>();
     m_undoStack->beginMacro(tr("Redo"));
-    for (int i = 0; i < indexes.length(); i++) {
+    for (int i = 0; i < indexes.length() && i < items.length(); i++) {
         auto &item = items[i];
         const auto row = indexes.at(i).row();
         QString hash = item.getHash();
@@ -355,5 +367,7 @@ void SecondaryListModel::restoreEntry(const QVariant &selfData, const QVector<QV
 
 void SecondaryListModel::revalidate(int row) {
     m_selectionState->revalidate();
+    if (row < 0 || row >= rowCount())
+        return;
     emit dataChanged(index(row), index(row));
 }

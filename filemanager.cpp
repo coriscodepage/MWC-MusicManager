@@ -29,7 +29,7 @@ void FileManager::copySongsToDrive(const QVector<MusicItem> &songs, const Insert
 }
 
 QByteArray FileManager::loadSaveFile() {
-    if (m_appSaveName.isEmpty() || m_appSaveName.isEmpty()) {
+    if (m_appPath.isEmpty() || m_appSaveName.isEmpty()) {
         qWarning() << "[FileManager] App Save Path or Save Name not set";
         return {};
     }

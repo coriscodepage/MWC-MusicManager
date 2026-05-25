@@ -503,6 +503,7 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionInfo"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -643,6 +644,11 @@
   <action name="actionCustom">
    <property name="text">
     <string>Custom</string>
+   </property>
+  </action>
+  <action name="actionInfo">
+   <property name="text">
+    <string>About us</string>
    </property>
   </action>
  </widget>

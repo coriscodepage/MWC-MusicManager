@@ -21,7 +21,7 @@
 #include <QSignalMapper>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow)
+    : QMainWindow(parent), ui(new Ui::MainWindow), m_stickyModified(false)
 {
     ui->setupUi(this);
     qDebug() << "Supported formats:" << QImageReader::supportedImageFormats();
@@ -205,7 +205,13 @@ MainWindow::MainWindow(QWidget *parent)
                 ui->insertRadio->setStyleSheet(inserted ? "font-weight: bold;" : "");
             break;
         }
-        m_primarymodel->revalidate(ui->listView->selectionModel()->selectedRows().constFirst().row());
+        const auto selectedRows = ui->listView->selectionModel()->selectedRows();
+        if (!selectedRows.isEmpty())
+            m_primarymodel->revalidate(selectedRows.constFirst().row());
+    });
+
+    connect(ui->actionInfo, &QAction::triggered, this, [this](){
+        QMessageBox::information(this, tr("About us"), tr("MWC Music Manager\nWork under the GPL license"));
     });
 
     QSignalMapper *signalMapperInsert = new QSignalMapper(this);
@@ -274,14 +280,18 @@ MainWindow::MainWindow(QWidget *parent)
         } });
 
     connect(m_mediaPlayer, &MediaPlayer::positionChanged, this, [this](qint64 duration, qint64 position) {
-        auto format = [](qint64 ms) -> QString {
-            qint64 s = ms / 1000;
-            return QString("%1:%2")
-                .arg(s / 60, 2, 10, QChar('0'))
-                .arg(s % 60, 2, 10, QChar('0'));
-        };
-        QString labelText = QString("%1 / %2").arg(format(position), format(duration));
-        ui->durationPlayer->setText(labelText);
+        if (duration >= 0 && position >= 0) {
+            auto format = [](qint64 ms) -> QString {
+                qint64 s = ms / 1000;
+                return QString("%1:%2")
+                    .arg(s / 60, 2, 10, QChar('0'))
+                    .arg(s % 60, 2, 10, QChar('0'));
+            };
+            QString labelText = QString("%1 / %2").arg(format(position), format(duration));
+            ui->durationPlayer->setText(labelText);
+        } else {
+            ui->durationPlayer->setText({});
+        }
     });
 
     connect(m_undoStack, &QUndoStack::cleanChanged, this, [this](bool clean)
@@ -391,13 +401,15 @@ void MainWindow::on_newItem_clicked()
 void MainWindow::on_deleteList_clicked()
 {
     auto indexes = ui->listView->selectionModel()->selectedRows();
+    if (indexes.isEmpty())
+        return;
 
     auto *cmd = new RemoveCommand(m_primarymodel, indexes);
 
     m_undoStack->push(cmd);
     ui->listView->setFocus();
     if (m_primarymodel->rowCount() > 0)
-        ui->listView->selectionModel()->setCurrentIndex(m_primarymodel->index(indexes.constFirst().row() - 1, 0), QItemSelectionModel::ClearAndSelect);
+        ui->listView->selectionModel()->setCurrentIndex(m_primarymodel->index(qMax(0, indexes.constFirst().row() - 1), 0), QItemSelectionModel::ClearAndSelect);
 }
 
 void MainWindow::on_downloadItem_clicked()
@@ -413,6 +425,7 @@ void MainWindow::on_downloadItem_clicked()
     const auto songList = m_musicStore->downloadMusic(url, playlistsAllowed);
     if (songList.isEmpty())
     {
+        m_progressBar->accept();
         qWarning() << "[MainWindow] Download failed or cancelled";
         return;
     }
@@ -420,6 +433,7 @@ void MainWindow::on_downloadItem_clicked()
     const auto indexes = m_selectionState->currentSelection();
     if (indexes.isEmpty())
     {
+        m_progressBar->accept();
         qWarning() << "[MainWindow] No selection to apply the download to";
         return;
     }
@@ -521,9 +535,14 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     }
     else if (res == &action4)
     {
-        QMimeData *data = m_secondarymodel->mimeData(list);
-        QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(m_primarymodel, binary, m_secondarymodel->mimeTypes().constFirst(), ui->listView->selectionModel()->selectedRows());
+        QModelIndexList selected = ui->listView->selectionModel()->selectedRows();
+        if (!selected.contains(index))
+            selected = list;
+        QMimeData *data = m_primarymodel->mimeData(selected);
+        const QString format = m_primarymodel->mimeTypes().constFirst();
+        QByteArray binary = data->data(format);
+        delete data;
+        CutCommand *cmd = new CutCommand(m_primarymodel, binary, format, selected);
         m_undoStack->push(cmd);
         // int firstRow = list.first().row();
         // int rowCount = list.count();
@@ -533,7 +552,9 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     {
         int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
-        QString format = data->formats().constFirst();
+        const QString format = ui->listView->model()->mimeTypes().constFirst();
+        if (!data->hasFormat(format))
+            return;
         QByteArray binary = data->data(format);
         PasteCommand *cmd = new PasteCommand(ui->listView->model(), binary, format, firstRow);
         m_undoStack->push(cmd);
@@ -582,9 +603,14 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     }
     else if (res == &action4)
     {
-        QMimeData *data = m_secondarymodel->mimeData(list);
-        QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(m_secondarymodel, binary, m_secondarymodel->mimeTypes().constFirst(), m_selectionState->currentSelection().indexes());
+        QModelIndexList selected = ui->listItemView->selectionModel()->selectedRows();
+        if (!selected.contains(index))
+            selected = list;
+        QMimeData *data = m_secondarymodel->mimeData(selected);
+        const QString format = m_secondarymodel->mimeTypes().constFirst();
+        QByteArray binary = data->data(format);
+        delete data;
+        CutCommand *cmd = new CutCommand(m_secondarymodel, binary, format, selected);
         m_undoStack->push(cmd);
         // int firstRow = list.first().row();
         // int rowCount = list.count();
@@ -594,7 +620,9 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     {
         int firstRow = list.first().row();
         const QMimeData *data = QApplication::clipboard()->mimeData();
-        QString format = data->formats().constFirst();
+        const QString format = ui->listItemView->model()->mimeTypes().constFirst();
+        if (!data->hasFormat(format))
+            return;
         QByteArray binary = data->data(format);
         PasteCommand *cmd = new PasteCommand(ui->listItemView->model(), binary, format, firstRow);
         m_undoStack->push(cmd);
@@ -727,9 +755,14 @@ void MainWindow::importDirectory(int type)
         listType = false;
         break;
     case LibraryController::DefinedDirs::OTHER:
-        directory = getDir(LibraryController::CUSTOM);
+    {
+        const QString selectedDir = getDir(LibraryController::CUSTOM);
+        if (selectedDir.isEmpty())
+            return;
+        directory = QDir(selectedDir);
         names[4] = directory.dirName().isEmpty() ? names.at(4) : directory.dirName();
         break;
+    }
     }
     m_progressBar->show();
     QUndoCommand *macro = new QUndoCommand(tr("Import directory"));
@@ -741,6 +774,7 @@ void MainWindow::importDirectory(int type)
     QStringList list;
     if (info.empty())
     {
+        m_progressBar->accept();
         showWarningBox(tr("Nothing to import. Directory is empty"));
         return;
     }
@@ -751,12 +785,14 @@ void MainWindow::importDirectory(int type)
 
     const auto songList = m_musicStore->importMusic(list);
     if (songList.isEmpty()) {
+        m_progressBar->accept();
         qWarning() << "[MainWindow] Import failed or cancelled";
         return;
     }
 
     const auto indexes = ui->listItemView->selectionModel()->selectedIndexes();
     if (indexes.isEmpty()) {
+        m_progressBar->accept();
         qWarning() << "[MainWindow] No selection to apply the import to";
         return;
     }
@@ -801,6 +837,8 @@ void MainWindow::copy()
 
     auto model = view->model();
     auto indexes = view->selectionModel()->selectedRows();
+    if (indexes.isEmpty())
+        return;
 
     QMimeData *data = model->mimeData(indexes);
     QApplication::clipboard()->setMimeData(data);
@@ -812,7 +850,9 @@ void MainWindow::paste()
     if (!view)
         return;
     const QMimeData *data = QApplication::clipboard()->mimeData();
-    QString format = data->formats().constFirst();
+    const QString format = view->model()->mimeTypes().constFirst();
+    if (!data->hasFormat(format))
+        return;
     QByteArray binary = data->data(format);
     PasteCommand *cmd = new PasteCommand(view->model(), binary, format);
     m_undoStack->push(cmd);
@@ -825,6 +865,8 @@ void MainWindow::cut()
         return;
     auto model = view->model();
     auto selection = view->selectionModel()->selectedRows();
+    if (selection.isEmpty())
+        return;
     QMimeData *mime = model->mimeData(selection);
     QString format = model->mimeTypes().constFirst();
     QByteArray data = mime->data(format);
@@ -939,11 +981,14 @@ void MainWindow::on_importItem_clicked()
             "DSD (*.dsf *.dff);;"
             "AC3 / DTS (*.ac3 *.dts);;"
             "All Files (*)"));
+    if (files.isEmpty())
+        return;
     m_progressBar->show();
     const auto songList = m_musicStore->importMusic(files);
     if (songList.isEmpty())
     {
         qWarning() << "[MainWindow] Import failed or cancelled";
+        m_progressBar->accept();
         return;
     }
 
@@ -951,6 +996,7 @@ void MainWindow::on_importItem_clicked()
     if (indexes.isEmpty())
     {
         qWarning() << "[MainWindow] No selection to apply the import to";
+        m_progressBar->accept();
         return;
     }
 

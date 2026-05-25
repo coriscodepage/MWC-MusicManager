@@ -177,20 +177,28 @@ void LibraryController::prepareDirectories()
     {
         QString saveFilePath = settings.value("saveLocation").toString();
         QFileInfo info(saveFilePath);
-        if (!info.isFile())
-        {
-            emit getDirectory(DirType::APP);
-        }
-        else
+        if (info.isFile())
         {
             FileManager::getInstance().setAppPath(info.dir().absolutePath());
             FileManager::getInstance().setSaveName(info.fileName());
+        }
+        else if (info.dir().exists() && !info.fileName().isEmpty())
+        {
+            FileManager::getInstance().setAppPath(info.dir().absolutePath());
+            FileManager::getInstance().setSaveName(info.fileName());
+        }
+        else
+        {
+            emit getDirectory(DirType::APP);
         }
     }
     else if (settings.contains("gamedir"))
     {
             auto path = settings.value("gamedir").toString();
-            settings.setValue("saveLocation", QVariant::fromValue(QDir(path).absoluteFilePath("save.msc")));
+            const auto savePath = QDir(path).absoluteFilePath("save.msc");
+            settings.setValue("saveLocation", QVariant::fromValue(savePath));
+            FileManager::getInstance().setAppPath(path);
+            FileManager::getInstance().setSaveName("save.msc");
     } else {
         emit getDirectory(DirType::APP);
     }

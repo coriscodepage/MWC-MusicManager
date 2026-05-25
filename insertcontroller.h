@@ -17,7 +17,7 @@ public:
     explicit InsertController(SelectionState *selectionState, QObject *parent = nullptr);
     void setInserted(QVector<QString> inserted);
     QVector<QString> getAllInserted();
-    void insertSubdirToGame(const QVector<MusicItem> &songs, int &type, const QString &insertHash);
+    bool insertSubdirToGame(const QVector<MusicItem> &songs, int type, const QString &insertHash);
 
 public slots:
     void revalidateInsert(QString hash);

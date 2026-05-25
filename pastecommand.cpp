@@ -17,7 +17,11 @@ PasteCommand::PasteCommand(QAbstractItemModel *itemModel, QByteArray &data, cons
         QModelIndexList list;
         list.append(index);
         auto mime = m_itemModel->mimeData(list);
-        m_oldData = mime->data(format);
+        if (mime)
+        {
+            m_oldData = mime->data(format);
+            delete mime;
+        }
         if (format == "application/x-msc-list" && !m_oldData.isEmpty()) {
             QDataStream streamOld(&m_oldData, QIODevice::ReadOnly);
             QVector<bool> oldTypes;
@@ -47,6 +51,8 @@ PasteCommand::PasteCommand(QAbstractItemModel *itemModel, QByteArray &data, cons
 }
 
 void PasteCommand::undo() {
+    if (m_count <= 0)
+        return;
     m_itemModel->removeRows(m_row, m_count);
     if(!m_oldData.isEmpty()) {
         QMimeData mime;
@@ -56,6 +62,8 @@ void PasteCommand::undo() {
 }
 
 void PasteCommand::redo() {
+    if (m_count <= 0)
+        return;
     QMimeData mime;
     mime.setData(m_format, m_data);
     if(!m_oldData.isEmpty()) {

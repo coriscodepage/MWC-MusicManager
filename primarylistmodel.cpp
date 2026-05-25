@@ -122,7 +122,7 @@ void PrimaryListModel::setItems(const QVector<ListItem> &items) {
 }
 
 void  PrimaryListModel::insertAt(const ListItem &item, int index) {
-    if (index >= 0) {
+    if (index >= 0 && index <= m_items.size()) {
         beginInsertRows(QModelIndex(), index, index);
         m_items.insert(index, item);
         endInsertRows();
@@ -143,7 +143,7 @@ QMimeData* PrimaryListModel::mimeData(const QModelIndexList &indexes) const {
     QByteArray encoded;
     QDataStream stream(&encoded, QIODevice::WriteOnly);
     for (const QModelIndex &index : indexes) {
-        if (!index.isValid())
+        if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size())
             continue;
         stream << QVariant::fromValue(m_items[index.row()]);
     }
@@ -200,7 +200,7 @@ Qt::DropActions PrimaryListModel::supportedDropActions() const {
 
 bool PrimaryListModel::removeRows(int row, int count, const QModelIndex &parent) {
     Q_UNUSED(parent)
-    if (row < 0 || row >= m_items.size() || count <= 0) return false;
+    if (row < 0 || row >= m_items.size() || count <= 0 || row + count > m_items.size()) return false;
     qDebug() << QString("[PrimaryListModel] Removing %1 row(s) starting from %2 in primary list").arg(count).arg(row);
     beginRemoveRows(QModelIndex(), row, row + count - 1);
     for (int i = row + count - 1; i >= row; i--) {
@@ -229,6 +229,8 @@ bool PrimaryListModel::moveRows(const QModelIndex &sourceParent, int sourceRow, 
     Q_UNUSED(sourceParent)
     Q_UNUSED(destinationParent)
     if (sourceRow < 0 || sourceRow + count > rowCount() || destinationChild < 0 || destinationChild > rowCount())
+        return false;
+    if (destinationChild >= sourceRow && destinationChild <= sourceRow + count)
         return false;
     QVector<QVariant> movingItems;
     for (int i = 0; i < count; ++i)
@@ -296,6 +298,8 @@ void PrimaryListModel::endMacro() {
 const QVariant PrimaryListModel::getSelf(QModelIndexList indexes) const {
     QVector<ListItem> data;
     for (const auto &index : indexes) {
+        if (!index.isValid() || index.row() < 0 || index.row() >= m_items.size())
+            continue;
         auto item = m_items.at(index.row());
         for(auto &song : item.getItems())
             song.setSong(nullptr);
@@ -310,7 +314,7 @@ const QVector<QVariant> PrimaryListModel::getDependent() const {
 void PrimaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVariant> &childData, QModelIndexList indexes) {
     auto items = selfData.value<QVector<ListItem>>();
     m_undoStack->beginMacro(tr("Redo"));
-    for (int i = 0; i < indexes.length(); i++) {
+    for (int i = 0; i < indexes.length() && i < items.length(); i++) {
         auto &item = items[i];
         const auto row = indexes.at(i).row();
         for (auto &s : item.getItems()) {
@@ -325,5 +329,7 @@ void PrimaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVar
 
 void PrimaryListModel::revalidate(int row) {
     m_selectionState->revalidate();
+    if (row < 0 || row >= rowCount())
+        return;
     emit dataChanged(index(row), index(row));
 }

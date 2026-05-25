@@ -25,7 +25,7 @@ private:
     MusicInfo m_currentInfo;
     QItemSelection m_currentSelection;
     QVector<const MusicItem *> m_resolvedSongs = {};
-    const ListItem *m_currentListItem;
+    const ListItem *m_currentListItem = nullptr;
     QPixmap resolveThumbnail(const QString &path);
     QVector<QString> m_inserted;
 

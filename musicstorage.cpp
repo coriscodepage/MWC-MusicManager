@@ -88,24 +88,19 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QUrl url, int 
         return {result};
     }
     QDir songDir;
-    prepareSongDir(songDir, hashValue);
+    if (!prepareSongDir(songDir, hashValue))
+        return {};
 
     QEventLoop loop; // INFO: Sync wait, non blocking.
     connect(this, &MusicStorage::handled, &loop, &QEventLoop::quit, Qt::SingleShotConnection);
-
-    if (url.isValid() && (url.scheme() == "http" || url.scheme() == "https") && !url.host().isEmpty())
-        m_downloader.downloadSong(url, songDir, hashValue, playlistsAllowed);
-    else
-    {
-        qDebug() << "[MusicStorage] Malformed url. Assuming yt search";
-        m_downloader.downloadSong("ytsearch1:" + url.toDisplayString(), songDir, "search");
-    }
 
     connect(&m_downloader, &Downloader::downloadFinished, this, [this, songDir](QVector<std::shared_ptr<MusicObject>> objects)
             {
         bool cleanUpdir = true;
         bool workDone = false;
         for (auto &object : objects) {
+            if (!object)
+                continue;
             if (!object->isValid()) {
                 qDebug() << QString("[MusicStorage] Removing invalid object with title %1").arg(object->title());
                 QDir sPath = object->storagePath();
@@ -166,6 +161,15 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::downloadMusic(QUrl url, int 
             cleanupDir.removeRecursively();
         }
         emit handled(); }, Qt::SingleShotConnection);
+
+    if (url.isValid() && (url.scheme() == "http" || url.scheme() == "https") && !url.host().isEmpty())
+        m_downloader.downloadSong(url, songDir, hashValue, playlistsAllowed);
+    else
+    {
+        qDebug() << "[MusicStorage] Malformed url. Assuming yt search";
+        m_downloader.downloadSong("ytsearch1:" + url.toDisplayString(), songDir, "search");
+    }
+
     loop.exec();
 
     QVector<std::shared_ptr<MusicObject>> returnList;
@@ -317,7 +321,7 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
         QStringList arguments;
         arguments << "-i" << QFileInfo(queueItem).absoluteFilePath() << "-c:a" << "libvorbis" << "-q:a" << "4" << "-vn" << savePath.absoluteFilePath(filename);
 
-        connect(m_process, &QProcess::finished, this, [this, filename](int exitCode, QProcess::ExitStatus status)
+        auto processConn = connect(m_process, &QProcess::finished, this, [this, filename](int exitCode, QProcess::ExitStatus status)
                 {
 
                     if (exitCode == 0) {
@@ -334,7 +338,8 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
 
         if (!m_process->waitForStarted())
         {
-            qWarning() << "[Downloader] Failed to start yt-dlp";
+            disconnect(processConn);
+            qWarning() << "[MusicStorage] Failed to start ffmpeg";
             return;
         }
         loop.exec();
@@ -342,9 +347,6 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
     disconnect(this, &MusicStorage::conversionFinished, &loop, &QEventLoop::quit);
     if (m_canceled)
         m_addedFiles.clear();
-    // progress->setValue(100);
-    m_process->deleteLater();
-    // progress->deleteLater();
     m_canceled = false;
 }
 
@@ -362,6 +364,7 @@ std::shared_ptr<MusicObject> MusicStorage::queryMusic(const QString &query)
 const QHash<QString, MusicObject> MusicStorage::getSongs()
 {
     QHash<QString, MusicObject> temp_map;
+    QVector<QString> keysForDeletion;
     for (auto it = m_songs.constBegin(); it != m_songs.constEnd(); it++)
     {
         auto key = it.key();
@@ -372,9 +375,16 @@ const QHash<QString, MusicObject> MusicStorage::getSongs()
         else
         {
             qDebug() << QString("[MusicStorage] Skipping key %1, value %2 as marked for deletion").arg(key, it.value()->title());
-            it.value()->deleteFromDisk();
-            m_songs.erase(it);
+            keysForDeletion.append(key);
         }
+    }
+    for (const auto &key : std::as_const(keysForDeletion))
+    {
+        auto it = m_songs.find(key);
+        if (it == m_songs.end())
+            continue;
+        it.value()->deleteFromDisk();
+        m_songs.erase(it);
     }
     m_dirty = false;
     return temp_map;

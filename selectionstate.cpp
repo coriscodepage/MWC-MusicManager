@@ -56,6 +56,9 @@ const MusicInfo &SelectionState::currentInfo() const {
 }
 
 const QString &SelectionState::currentHash() const {
+    static const QString empty;
+    if (!m_currentListItem)
+        return empty;
     return m_currentListItem->getInsertHash();
 }
 
@@ -64,6 +67,9 @@ void SelectionState::updateList(const ListItem *data) {
     m_currentListItem = data;
     } else {
         m_currentListItem = nullptr;
+        m_currentSelection.clear();
+        m_resolvedSongs.clear();
+        m_currentInfo = {};
     }
     emit songSelected({}, resolveThumbnail({}));
     emit songListChanged(data);

@@ -30,6 +30,7 @@ private:
     QMediaPlayer *m_mediaPlayer;
     const SelectionState *m_selectionState;
     const MusicItem *m_currentSong;
+    void clear();
 };
 
 #endif // MEDIAPLAYER_H

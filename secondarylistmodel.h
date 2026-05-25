@@ -54,7 +54,7 @@ private:
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
     SelectionState *m_selectionState;
-    bool m_forceCopy;
+    bool m_forceCopy = false;
 
     void addItemAt(const MusicItem &item, int row);
 

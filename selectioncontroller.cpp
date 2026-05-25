@@ -9,7 +9,9 @@ void SelectionController::handlePrimaryListSelectionChanged(const QItemSelection
     Q_UNUSED(deselected);
     if (selected.isEmpty()) {
         // qDebug() << "[SelectionController] Empty primary selection.";
+        m_songModel->setSource(nullptr);
         m_selectionState->updateList(nullptr);
+        return;
         // emit SongListChanged({}, -1);
     }
 
@@ -45,4 +47,3 @@ void SelectionController::handleSecondaryListSelectionChanged(const QItemSelecti
     m_selectionState->updateState(selected, resolved);
 
 }
-

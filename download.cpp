@@ -28,6 +28,10 @@ Downloader::Downloader(QObject *parent) : QObject(parent)
         m_ytdlpPath = ytdlpExe;
 
     m_process = new QProcess(this);
+    connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
+        qWarning() << "[Downloader] Process error:" << error;
+        emit downloadFinished({});
+    });
 }
 
 void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &hash, bool allowPlaylists)

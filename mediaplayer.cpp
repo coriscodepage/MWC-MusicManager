@@ -1,5 +1,6 @@
 #include "mediaplayer.h"
 #include <qaudiooutput.h>
+#include <qdebug.h>
 
 MediaPlayer::MediaPlayer(const SelectionState *selectionState, QObject *parent)
     : QObject{parent}, m_selectionState(selectionState), m_currentSong(nullptr)
@@ -17,6 +18,12 @@ MediaPlayer::MediaPlayer(const SelectionState *selectionState, QObject *parent)
     });
     connect(m_mediaPlayer, &QMediaPlayer::positionChanged, this, [this](qint64 position) {
         emit positionChanged(m_mediaPlayer->duration(), position);
+    });
+    connect(m_mediaPlayer, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error error, const QString &errorString) {
+        if (error == QMediaPlayer::NoError)
+            return;
+        qWarning() << "[MediaPlayer] Playback error:" << error << errorString;
+        clear();
     });
 }
 
@@ -54,8 +61,13 @@ void MediaPlayer::stop() {
 void MediaPlayer::checkIfDeleted(const QString &hash) {
     if (!m_currentSong) return;
     if (m_currentSong->getHash() != hash) return;
+    clear();
+}
+
+void MediaPlayer::clear() {
     m_mediaPlayer->stop();
     m_mediaPlayer->setSource({});
+    m_currentSong = nullptr;
     emit stopState(false);
     emit pauseState(false);
     emit playState(false);
