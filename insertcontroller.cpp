@@ -76,8 +76,8 @@ void InsertController::insert(int index) {
             updatedInserted[i] = {};
         }
         updatedInserted[index] = currentHash;
-        if (!insertSubdirToGame(currentList->getItems(), index, currentHash))
-            return;
+        // if (!insertSubdirToGame(currentList->getItems(), index, currentHash))
+        //     return;
         m_inserted = updatedInserted;
         revalidateInsert(currentHash);
         qDebug() << QString("[InsertController] Inserting %1 into Drive number %2.").arg(currentHash).arg(index + 1);
