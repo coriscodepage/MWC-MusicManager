@@ -23,6 +23,9 @@ private:
 private slots:
     void handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash);
 
+public slots:
+    void cancel();
+
 signals:
     void downloadFinished(QVector<std::shared_ptr<MusicObject>> songs);
     void progressUpdate(int percent, const QString &name, const QString &size, const QString &speed, const QString &ETA);

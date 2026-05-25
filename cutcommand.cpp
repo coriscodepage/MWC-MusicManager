@@ -1,11 +1,14 @@
 #include "cutcommand.h"
+#include "removecommand.h"
 #include <qapplication.h>
 #include <qclipboard.h>
 #include <qmimedata.h>
 
-CutCommand::CutCommand(QAbstractItemModel *itemModel, QByteArray &data, const QString &format, const QModelIndexList &selectedindexes): m_itemModel(itemModel), m_format(format), m_indexes(selectedindexes) {
+CutCommand::CutCommand(CustomModelEdit *itemModel, QByteArray &data, const QString &format, const QModelIndexList &selectedindexes): m_itemModel(itemModel), m_format(format), m_indexes(selectedindexes) {
+    m_removeCommand = new RemoveCommand(itemModel, selectedindexes, this);
     if (m_indexes.isEmpty())
         return;
+    std::sort(m_indexes.begin(), m_indexes.end(), [](QModelIndex &a, QModelIndex &b) {return a.row() < b.row();});
     m_data = data;
 }
 
@@ -20,16 +23,11 @@ void CutCommand::redo() {
 
     int firstRow = m_indexes.first().row();
     int rowCount = m_indexes.count();
-    m_itemModel->removeRows(firstRow, rowCount);
+    m_removeCommand->redo();
 }
 
 void CutCommand::undo() {
     if (m_indexes.isEmpty() || m_data.isEmpty())
         return;
-
-    QMimeData mime;
-    mime.setData(m_format, m_data);
-
-    int firstRow = m_indexes.first().row();
-    m_itemModel->dropMimeData(&mime, Qt::CopyAction, firstRow, 0, QModelIndex());
+    m_removeCommand->undo();
 }

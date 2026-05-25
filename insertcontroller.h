@@ -17,6 +17,7 @@ public:
     explicit InsertController(SelectionState *selectionState, QObject *parent = nullptr);
     // const QVector<QString> &getAllInserted();
     void setInserted(QVector<QString> inserted);
+    QVector<QString> getAllInserted();
 
 public slots:
     void revalidateInsert(QString hash);
@@ -26,7 +27,7 @@ signals:
     void insertedChanged(InsertController::Drives drive, bool inserted);
 
 private:
-    QString m_inserted[4];
+    std::array<QString, 4> m_inserted;
     SelectionState *m_selectionState;
 };
 

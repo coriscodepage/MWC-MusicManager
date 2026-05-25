@@ -6,6 +6,7 @@ ProgressDialog::ProgressDialog(QWidget *parent)
     , ui(new Ui::ProgressDialog)
 {
     ui->setupUi(this);
+    connect(ui->pushButton, &QPushButton::clicked, this, &ProgressDialog::cancel);
 }
 
 ProgressDialog::~ProgressDialog()

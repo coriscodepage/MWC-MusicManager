@@ -18,6 +18,7 @@ public:
     const MusicInfo &currentInfo() const;
     const QString &currentHash() const;
     const QVector<QString> &inserted() const;
+    void revalidate();
 
 private:
     MusicInfo m_currentInfo;

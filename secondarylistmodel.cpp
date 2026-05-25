@@ -2,14 +2,16 @@
 #include "edittitlecommand.h"
 #include "movecommand.h"
 #include "pastecommand.h"
+#include "selectionstate.h"
 #include <QMimeData>
 #include <qitemselectionmodel.h>
 #include <qpixmap.h>
 
-SecondaryListModel::SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent)
+SecondaryListModel::SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, SelectionState *selctionState, QObject *parent)
     : QAbstractListModel{parent}
     , m_musicStore(musicStore)
     , m_undoStack(undoStack)
+    , m_selectionState(selctionState)
 {}
 
 int SecondaryListModel::rowCount(const QModelIndex &parent) const {
@@ -349,4 +351,9 @@ void SecondaryListModel::restoreEntry(const QVariant &selfData, const QVector<QV
         addItemAt(item, row);
     }
     m_undoStack->endMacro();
+}
+
+void SecondaryListModel::revalidate(int row) {
+    m_selectionState->revalidate();
+    emit dataChanged(index(row), index(row));
 }

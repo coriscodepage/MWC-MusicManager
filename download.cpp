@@ -126,6 +126,11 @@ void Downloader::downloadSong(const QUrl &url, const QDir &path, const QString &
     // }
 }
 
+void Downloader::cancel() {
+    if (m_process)
+        m_process->kill();
+}
+
 void Downloader::handleDownloadFinished(const QString &output, const QDir &songPath, const QString &hash)
 {
     if (output.trimmed().split("\n").count() > 1)

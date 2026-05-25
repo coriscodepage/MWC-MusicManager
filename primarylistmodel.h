@@ -45,6 +45,7 @@ public:
     QVector<ListItem> &getItems();
     void setItems(const QVector<ListItem> &items);
     void setType(int index, bool type);
+    void revalidate(int row);
 
 private:
     QVector<ListItem> m_items;

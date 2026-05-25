@@ -66,3 +66,7 @@ const QDir &FileManager::getMusicPath() const {
 const QDir &FileManager::getAppPath() const {
     return m_appPath;
 }
+
+const QString &FileManager::getSaveName() const {
+    return m_appSaveName;
+}

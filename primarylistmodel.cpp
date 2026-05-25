@@ -322,3 +322,8 @@ void PrimaryListModel::restoreEntry(const QVariant &selfData, const QVector<QVar
     }
     m_undoStack->endMacro();
 }
+
+void PrimaryListModel::revalidate(int row) {
+    m_selectionState->revalidate();
+    emit dataChanged(index(row), index(row));
+}

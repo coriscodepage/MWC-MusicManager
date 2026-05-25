@@ -1,5 +1,4 @@
 #include "musicstorage.h"
-#include "downloaddialog.h"
 #include "filemanager.h"
 #include <QUrlQuery>
 #include <qeventloop.h>
@@ -28,6 +27,7 @@ MusicStorage::MusicStorage(QObject *parent) : QObject(parent), m_downloader(Down
         m_ffmpegPath = ffmpegExe;
 
     connect(&m_downloader, &Downloader::progressUpdate, this, &MusicStorage::progressUpdate);
+    m_process = new QProcess(this);
 }
 
 void MusicStorage::setMusicDir(const QDir &dir)
@@ -282,10 +282,16 @@ QVector<std::shared_ptr<MusicObject>> MusicStorage::importMusic(QStringList file
     return returnValues;
 }
 
+void MusicStorage::cancel() {
+    m_canceled = true;
+    if (m_process)
+        m_process->kill();
+    m_downloader.cancel();
+}
+
 void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
 {
     m_canceled = false;
-    QProcess *process = new QProcess(this);
     // QProgressDialog *progress = new QProgressDialog(tr("Converting..."), tr("Abort Conversion"), 0, 100);
     // progress->setWindowModality(Qt::ApplicationModal);
     // progress->setMinimumDuration(0);
@@ -311,7 +317,7 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
         QStringList arguments;
         arguments << "-i" << QFileInfo(queueItem).absoluteFilePath() << "-c:a" << "libvorbis" << "-q:a" << "4" << "-vn" << savePath.absoluteFilePath(filename);
 
-        connect(process, &QProcess::finished, this, [this, process, filename](int exitCode, QProcess::ExitStatus status)
+        connect(m_process, &QProcess::finished, this, [this, filename](int exitCode, QProcess::ExitStatus status)
                 {
 
                     if (exitCode == 0) {
@@ -320,12 +326,13 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
                         emit conversionFinished();
                     } else {
                         qWarning() << "[MusicStorage] Conversion failed";
-                        qDebug() << "[MusicStorage] stderr: " << process->readAllStandardError();
+                        qDebug() << "[MusicStorage] stderr: " << m_process->readAllStandardError();
                         emit conversionFinished();
-                    } }, Qt::SingleShotConnection);
-        process->start(m_ffmpegPath, arguments);
+                    }
+                }, Qt::SingleShotConnection);
+        m_process->start(m_ffmpegPath, arguments);
 
-        if (!process->waitForStarted())
+        if (!m_process->waitForStarted())
         {
             qWarning() << "[Downloader] Failed to start yt-dlp";
             return;
@@ -336,7 +343,7 @@ void MusicStorage::convertQueue(QQueue<QString> &queue, const QDir &savePath)
     if (m_canceled)
         m_addedFiles.clear();
     // progress->setValue(100);
-    process->deleteLater();
+    m_process->deleteLater();
     // progress->deleteLater();
     m_canceled = false;
 }

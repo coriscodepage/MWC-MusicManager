@@ -16,7 +16,7 @@ void InsertController::revalidateInsert(QString hash) {
 
 
     if (listHash != std::end(m_inserted)) {
-        int index = std::distance(m_inserted, listHash);
+        int index = std::distance(m_inserted.begin(), listHash);
         switch (index) {
         case Drives::CD1:
             emit insertedChanged(Drives::CD1, true);
@@ -65,7 +65,7 @@ void InsertController::insert(int index) {
         const auto currentHash = m_selectionState->currentHash();
         const auto listHash = std::find(std::begin(m_inserted), std::end(m_inserted), currentHash);
         if (listHash != std::end(m_inserted)) {
-            int i = std::distance(m_inserted, listHash);
+            int i = std::distance(m_inserted.begin(), listHash);
             if (index == i) return;
             m_inserted[i] = {};
         }
@@ -79,5 +79,14 @@ void InsertController::setInserted(QVector<QString> inserted) {
     if (inserted.count() != 4) return;
     for(auto i = 0; i < 4; i++) {
         m_inserted[i] = inserted[i];
+        // revalidateInsert(m_inserted[i]);
     }
+}
+
+QVector<QString> InsertController::getAllInserted() {
+    QVector<QString> ret;
+    for(auto i = 0; i < 4; i++) {
+        ret.push_back(m_inserted.at(i));
+    }
+    return ret;
 }

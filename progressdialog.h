@@ -20,6 +20,9 @@ public slots:
 
 private:
     Ui::ProgressDialog *ui;
+
+signals:
+    void cancel();
 };
 
 #endif // PROGRESSDIALOG_H

@@ -47,6 +47,7 @@ public:
     const QDir &getGamePath() const;
     const QDir &getMusicPath() const;
     const QDir &getAppPath() const;
+    const QString &getSaveName() const;
 
 };
 

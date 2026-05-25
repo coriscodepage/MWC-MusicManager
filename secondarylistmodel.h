@@ -5,13 +5,14 @@
 #include "musicitem.h"
 #include "musicstorage.h"
 #include "custommodeledit.h"
+#include "selectionstate.h"
 #include <QAbstractListModel>
 #include <qundostack.h>
 
 class SecondaryListModel : public QAbstractListModel, public CustomModelEdit
 {
 public:
-    explicit SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent = nullptr);
+    explicit SecondaryListModel(MusicStorage *musicStore, QUndoStack *undoStack, SelectionState *selctionState, QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -46,11 +47,13 @@ public:
 
 public slots:
     void setForceCopy(bool state);
+    void revalidate(int row);
 
 private:
     ListItem *m_list = nullptr;
     MusicStorage *m_musicStore;
     QUndoStack *m_undoStack;
+    SelectionState *m_selectionState;
     bool m_forceCopy;
 
     void addItemAt(const MusicItem &item, int row);

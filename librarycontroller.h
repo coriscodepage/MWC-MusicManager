@@ -24,9 +24,10 @@ public:
         RADIO = 3,
         OTHER = 4,
     };
-    explicit LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent = nullptr);
+    explicit LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, InsertController *insertController, QUndoStack *undoStack, QObject *parent = nullptr);
     void loadAppData();
     void handleDirecorySelected(DirType type, const QString path);
+    void saveAppData();
 
 private:
     PrimaryListModel *m_listModel;

@@ -20,6 +20,21 @@ void SelectionState::updateState(QItemSelection currentSelection, QVector<const 
     }
 }
 
+
+void SelectionState::revalidate() {
+    if (m_resolvedSongs.count() == 1) {
+        // qDebug() << "[SelectionState] Revalidated single selection";
+        m_currentInfo = m_resolvedSongs.constFirst()->musicInfo();
+        emit songSelected(&m_currentInfo, resolveThumbnail(m_currentInfo.thumbnailPath));
+    } else if (m_resolvedSongs.count() == 0) {
+        // qDebug() << "[SelectionState] Revalidated no selection";
+        // m_currentInfo = {};
+        emit songSelected(nullptr, resolveThumbnail({}));
+    } else {
+        // qDebug() << "[SelectionState] Revalidated multi selection";
+    }
+}
+
 const QItemSelection &SelectionState::currentSelection() const {
     return m_currentSelection;
 }

@@ -32,17 +32,19 @@ MainWindow::MainWindow(QWidget *parent)
     // qDebug() << QString("[MainWindow] Game path: %1").arg(m_gameDir.absolutePath());
     m_selectionState = new SelectionState();
     m_primarymodel = new PrimaryListModel(m_musicStore, m_undoStack, m_selectionState, this);
-    m_secondarymodel = new SecondaryListModel(m_musicStore, m_undoStack, this);
+    m_secondarymodel = new SecondaryListModel(m_musicStore, m_undoStack, m_selectionState, this);
     m_mediaPlayer = new MediaPlayer(m_selectionState, this);
     m_selectionController = new SelectionController(m_primarymodel, m_secondarymodel, m_selectionState, this);
     m_insertController = new InsertController(m_selectionState, this);
-    m_libraryController = new LibraryController(m_primarymodel, m_secondarymodel, m_selectionState, m_musicStore, m_undoStack, this);
+    m_libraryController = new LibraryController(m_primarymodel, m_secondarymodel, m_selectionState, m_musicStore, m_insertController, m_undoStack, this);
     m_progressBar = new ProgressDialog(this);
     ui->listView->setModel(m_primarymodel);
     ui->listItemView->setModel(m_secondarymodel);
     ui->listView->setItemDelegate(new PrimaryListDelegate());
 
     connect(m_musicStore, &MusicStorage::progressUpdate, m_progressBar, &ProgressDialog::updateProgress);
+    connect(m_progressBar, &ProgressDialog::cancel, m_musicStore, &MusicStorage::cancel);
+    connect(m_progressBar, &ProgressDialog::cancel, this, [this](){m_progressBar->accept();});
     connect(ui->listView, &TargetListView::forceCopy, ui->listItemView, &ChildListView::setForceCopy);
     connect(ui->listItemView, &ChildListView::forceCopy, m_secondarymodel, &SecondaryListModel::setForceCopy);
 
@@ -186,6 +188,8 @@ MainWindow::MainWindow(QWidget *parent)
                 ui->insertRadio->setStyleSheet(inserted ? "font-weight: bold;" : "");
             break;
         }
+        m_primarymodel->revalidate(ui->listView->selectionModel()->selectedRows().constFirst().row());
+        // m_stickyModified = true;
     });
 
     QSignalMapper *signalMapperInsert = new QSignalMapper(this);
@@ -202,7 +206,11 @@ MainWindow::MainWindow(QWidget *parent)
     ui->listItemView->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listItemView, &QListView::customContextMenuRequested, this, &MainWindow::showListItemContextMenu);
 
-    // connect(ui->actionSave, &QAction::triggered, this, &MainWindow::saveAppData);
+    connect(ui->actionSave, &QAction::triggered, this, [this]() {
+        m_libraryController->saveAppData();
+        // setWindowModified(false);
+        // m_stickyModified = false;
+    });
     connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copy);
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
     connect(ui->actionCut, &QAction::triggered, this, &MainWindow::cut);
@@ -396,9 +404,12 @@ void MainWindow::on_downloadItem_clicked()
         auto item = MusicItem(songList.at(i)->title(), songList.at(i));
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
-
-    setWindowModified(true);
-    m_stickyModified = true;
+    ui->listItemView->setFocus();
+    if (songList.count()) {
+        setWindowModified(true);
+        m_secondarymodel->revalidate(index.row());
+        m_stickyModified = true;
+    }
     m_progressBar->accept();
     // updateItemCountLabel();
     // songUpdated(index);
@@ -473,11 +484,11 @@ void MainWindow::showListContextMenu(const QPoint &pos)
     {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(ui->listView->model(), binary, m_secondarymodel->mimeTypes().constFirst(), ui->listView->selectionModel()->selectedRows());
+        CutCommand *cmd = new CutCommand(m_primarymodel, binary, m_secondarymodel->mimeTypes().constFirst(), ui->listView->selectionModel()->selectedRows());
         m_undoStack->push(cmd);
-        int firstRow = list.first().row();
-        int rowCount = list.count();
-        m_secondarymodel->removeRows(firstRow, rowCount);
+        // int firstRow = list.first().row();
+        // int rowCount = list.count();
+        // m_secondarymodel->removeRows(firstRow, rowCount);
     }
     else if (res == &action5)
     {
@@ -534,11 +545,11 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
     {
         QMimeData *data = m_secondarymodel->mimeData(list);
         QByteArray binary = data->data(m_secondarymodel->mimeTypes().constFirst());
-        CutCommand *cmd = new CutCommand(ui->listItemView->model(), binary, m_secondarymodel->mimeTypes().constFirst(), m_selectionState->currentSelection().indexes());
+        CutCommand *cmd = new CutCommand(m_secondarymodel, binary, m_secondarymodel->mimeTypes().constFirst(), m_selectionState->currentSelection().indexes());
         m_undoStack->push(cmd);
-        int firstRow = list.first().row();
-        int rowCount = list.count();
-        m_secondarymodel->removeRows(firstRow, rowCount);
+        // int firstRow = list.first().row();
+        // int rowCount = list.count();
+        // m_secondarymodel->removeRows(firstRow, rowCount);
     }
     else if (res == &action5)
     {
@@ -638,7 +649,7 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
 void MainWindow::importDirectory(int type)
 {
-    QDir directory;
+    QDir directory = FileManager::getInstance().getMusicPath();
     bool listType = true;
     static QStringList names{tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
     switch (type)
@@ -721,9 +732,12 @@ void MainWindow::importDirectory(int type)
         auto item = MusicItem(songList.at(i)->title(), songList.at(i));
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
-
-    setWindowModified(true);
-    m_stickyModified = true;
+    ui->listItemView->setFocus();
+    if (songList.count()) {
+        setWindowModified(true);
+        m_secondarymodel->revalidate(index.row());
+        m_stickyModified = true;
+    }
     m_progressBar->accept();
     ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
 }
@@ -776,7 +790,8 @@ void MainWindow::cut()
     QString format = model->mimeTypes().constFirst();
     QByteArray data = mime->data(format);
     delete mime;
-    CutCommand *cmd = new CutCommand(view->model(), data, format, view->selectionModel()->selectedRows());
+    CustomModelEdit *edit = view == ui->listView ? dynamic_cast<CustomModelEdit*>(m_primarymodel) : dynamic_cast<CustomModelEdit*>(m_secondarymodel);
+    CutCommand *cmd = new CutCommand(edit, data, format, view->selectionModel()->selectedRows());
     m_undoStack->push(cmd);
 }
 
@@ -789,7 +804,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     else
     {
-        // saveAppData();
+        m_libraryController->saveAppData();
         event->accept();
     }
 }
@@ -913,8 +928,12 @@ void MainWindow::on_importItem_clicked()
         m_secondarymodel->insertRowInternal(index.row() + i, item);
     }
 
-    setWindowModified(true);
-    m_stickyModified = true;
+    ui->listItemView->setFocus();
+    if (songList.count()) {
+        setWindowModified(true);
+        m_secondarymodel->revalidate(index.row());
+        m_stickyModified = true;
+    }
     m_progressBar->accept();
     ui->listItemView->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect);
     // updateItemCountLabel();

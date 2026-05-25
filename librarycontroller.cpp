@@ -1,12 +1,11 @@
 #include "librarycontroller.h"
 #include "filemanager.h"
-#include "insertcommand.h"
 #include "listitem.h"
 #include <qdebug.h>
 #include <qsettings.h>
 
-LibraryController::LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, QUndoStack *undoStack, QObject *parent)
-    : QObject{parent}, m_listModel(listModel), m_songModel(songModel), m_selectionState(selectionState), m_musicStore(musicStore), m_undoStack(undoStack)
+LibraryController::LibraryController(PrimaryListModel *listModel, SecondaryListModel *songModel, SelectionState *selectionState, MusicStorage *musicStore, InsertController *insertController, QUndoStack *undoStack, QObject *parent)
+    : QObject{parent}, m_listModel(listModel), m_songModel(songModel), m_selectionState(selectionState), m_musicStore(musicStore), m_insertController(insertController), m_undoStack(undoStack)
 {
     prepareDirectories();
 }
@@ -32,7 +31,7 @@ void LibraryController::loadAppData()
         songsShared.insert(key, std::make_shared<MusicObject>(value));
     }
 
-    m_insertController->setInserted(insertedList);
+    m_insertController->setInserted(std::move(insertedList));
     m_musicStore->setSongs(songsShared);
 
     // if (m_musicStore->getMusicDir() != musicPath)
@@ -197,114 +196,26 @@ void LibraryController::prepareDirectories()
     //     setUiEnabled(true);
 }
 
-// bool MainWindow::setMusicDir(bool exp) {
-//     QSettings settings("Kori", "Music Manager");
-//     QString musicDirName = "music";
-//     QDir musicDir = m_gameDir;
-
-//     if (exp) {
-//         QString path = getDir(tr("Select music directory"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath());
-//         if (!path.isEmpty() && QDir(path).exists()) {
-//             settings.setValue("musicdir", QVariant::fromValue(path));
-//             musicDir = QDir(path);
-//         } else {
-//             showWarningBox(tr("Please select a valid directory."));
-//             return false;
-//         }
-//     } else {
-//         if (settings.contains("musicdir")) {
-//             auto path = settings.value("musicdir").toString();
-//             if (!path.isEmpty() && QDir(path).exists()) {
-//                 musicDir = QDir(path);
-//                 settings.setValue("musicdir", QVariant::fromValue(path));
-//             } else {
-//                 showWarningBox(tr("Music directory invalid. Defaulting to game directory. If that is incorrect change it in the settings."));
-//                 settings.setValue("musicdir", QVariant::fromValue(m_gameDir.absolutePath()));
-//             }
-//         }
-//     }
-
-//     if (!musicDir.exists(musicDirName)) {
-//         if (!musicDir.mkpath(musicDirName)) {
-//             qWarning() << "[MainWindow] Failed to create music directory";
-//             return false;
-//         }
-//     }
-//     if (!musicDir.cd(musicDirName)) {
-//         qWarning() << "[MainWindow] Failed to enter music subdirectory";
-//         return false;
-//     }
-//     m_musicStore->setMusicDir(musicDir);
-//     return exp;
-// }
-
-// bool MainWindow::setGameDir(bool exp) {
-//     QSettings settings("Kori", "Music Manager");
-//     if (exp) {
-//         QDir dir;
-//         QString path;
-//         do {
-//             path = getDir(tr("Select game directory"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath());
-//             dir = QDir(path);
-//             if (dir.exists() && !path.isEmpty()) {
-//                 if(dir.entryList().contains("mysummercar.exe") || dir.entryList().contains("mywintercar.exe")) { // INFO: Check if game is really here
-//                     QString saveVal = dir.absolutePath();
-//                     settings.setValue("gamedir", QVariant::fromValue(saveVal));
-//                     m_gameDir = dir;
-//                     setMusicDir(false);
-//                     return true;
-//                 }
-//             }
-//             showWarningBox(tr("Directory does not contain mysummercar.exe or mywintercar.exe, please select a valid directory."));
-//         } while(!dir.exists() || path.isEmpty());
-//     } else {
-//         if (settings.contains("gamedir")) {
-//             auto path = settings.value("gamedir").toString();
-//             if (!path.isEmpty() && QDir(path).exists()) {
-//                 m_gameDir = QDir(path);
-//                 return false;
-//             }
-//         }
-//         setGameDir(true);
-//     }
-//     return false;
-// }
-
-// bool MainWindow::setSaveFile(bool exp, bool open) {
-//     QSettings settings("Kori", "Music Manager");
-
-//     if (exp) {
-//         if (open) {
-//             QString saveFilePath = QFileDialog::getOpenFileName(this,tr("Open File"), m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath() , tr("MusicManager save (*.msc)"));
-//             QFileInfo info(saveFilePath);
-//             if (!info.isFile()) return false;
-//             m_appSave = info;
-//             settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
-//             return true;
-//         } else {
-//             QString saveFilePath = QFileDialog::getSaveFileName(this, tr("Save File"), m_appSave.exists() ? m_appSave.absolutePath() : m_gameDir.exists() ? m_gameDir.absolutePath() : QDir::homePath(), tr("MusicManager save (*.msc)"));
-//             m_appSave = QFileInfo(saveFilePath);
-//             settings.setValue("saveLocation", QVariant::fromValue(m_appSave.absoluteFilePath()));
-//             return true;
-//         }
-//     } else {
-//         if (settings.contains("saveLocation")) {
-//             QString saveFilePath = settings.value("saveLocation").toString();
-//             QFileInfo info(saveFilePath);
-//             if (!info.isFile()) {
-//                 setSaveFile(true);
-//                 return true;
-//             } else {
-//                 m_appSave = info;
-//                 return false;
-//             }
-//         } else {
-//             if (m_gameDir.exists())
-//                 settings.setValue("saveLocation", QVariant::fromValue(m_gameDir.absoluteFilePath("save.msc")));
-//         }
-//     }
-//     return false;
-// }
+void LibraryController::saveAppData() {
+// if (!m_appSave.isFile()) setSaveFile(true, false);
+// if (!m_appSave.isFile()) m_appSave = QFileInfo(m_gameDir.absoluteFilePath("save.msc"));
+QFileInfo savePath = QFileInfo(FileManager::getInstance().getAppPath().absoluteFilePath(FileManager::getInstance().getSaveName()));
+qDebug() << "[MainWindow] Save start";
+qDebug() << QString("[MainWindow] Saving to: %1").arg(savePath.absoluteFilePath());
+QFile file(savePath.absoluteFilePath());
+if (!file.open(QIODevice::WriteOnly))
+    return;
+QDataStream out(&file);
+auto primaryItems = m_listModel->getItems();
+auto songs = m_musicStore->getSongs();
+auto insertedList = m_insertController->getAllInserted();
+m_undoStack->clear();
+out << primaryItems;
+out << songs;
+out << insertedList;
+out << FileManager::getInstance().getMusicPath().absolutePath();
+qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
+}
 
 // void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir) {
 //     auto songsShared = m_musicStore->getSongsShared();

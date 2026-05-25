@@ -33,6 +33,7 @@ private:
     QString m_ffmpegPath;
     bool m_canceled;
     Downloader m_downloader;
+    QProcess *m_process;
     QString resolveHash(const QUrl &url);
     bool prepareSongDir(QDir &songDir, const QString &hashValue);
     void convertQueue(QQueue<QString> &queue, const QDir &savePath);
@@ -40,6 +41,9 @@ signals:
     void handled();
     void conversionFinished();
     void progressUpdate(int percent, const QString &name, const QString &size, const QString &speed, const QString &ETA);
+
+public slots:
+    void cancel();
 };
 
 #endif // MUSICSTORAGE_H
