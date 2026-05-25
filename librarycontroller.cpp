@@ -163,7 +163,9 @@ void LibraryController::prepareDirectories()
         auto path = settings.value("gamedir").toString();
         if (!path.isEmpty() && QDir(path).exists())
         {
-            FileManager::getInstance().setMusicPath(path);
+            auto dir = QDir(path);
+            dir.cd("music");
+            FileManager::getInstance().setMusicPath(dir.absolutePath());
         }
     }
     else
@@ -222,7 +224,7 @@ out << QDir(FileManager::getInstance().getMusicPath()).absolutePath();
 qDebug() << QString("[MainWindow] Saved %1 primary elements and %2 songs").arg(primaryItems.size()).arg(songs.size());
 }
 
-// void MainWindow::musicMismatch(bool oldExists, const QDir &oldDir) {
+// void LibraryController::musicMismatch(bool oldExists, const QDir &oldDir) {
 //     auto songsShared = m_musicStore->getSongsShared();
 //     QMessageBox msgBox(this);
 //     msgBox.setWindowTitle(tr("Music directory mismatch"));

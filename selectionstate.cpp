@@ -38,6 +38,11 @@ void SelectionState::revalidate() {
 const QItemSelection &SelectionState::currentSelection() const {
     return m_currentSelection;
 }
+
+const ListItem *SelectionState::currenList() const {
+    return m_currentListItem;
+}
+
 const MusicItem * SelectionState::currentSong() const {
     if (m_resolvedSongs.count() == 1) {
     return m_resolvedSongs.constFirst();
@@ -45,6 +50,7 @@ const MusicItem * SelectionState::currentSong() const {
         return nullptr;
     }
 }
+
 const MusicInfo &SelectionState::currentInfo() const {
     return m_currentInfo;
 }

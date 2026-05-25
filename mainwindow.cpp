@@ -228,8 +228,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(ui->actionSave, &QAction::triggered, this, [this]() {
         m_libraryController->saveAppData();
-        // setWindowModified(false);
-        // m_stickyModified = false;
+        setWindowModified(false);
+        m_stickyModified = false;
     });
     connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::copy);
     connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::paste);
@@ -688,7 +688,7 @@ void MainWindow::showListItemContextMenu(const QPoint &pos)
 
 void MainWindow::importDirectory(int type)
 {
-    QDir directory = FileManager::getInstance().getMusicPath();
+    QDir directory = FileManager::getInstance().getGamePath();
     bool listType = true;
     static QStringList names{tr("CD1"), tr("CD2"), tr("CD3"), tr("Radio"), tr("Custom")};
     switch (type)

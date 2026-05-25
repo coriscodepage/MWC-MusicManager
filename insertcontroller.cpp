@@ -1,4 +1,5 @@
 #include "insertcontroller.h"
+#include "filemanager.h"
 #include <qdebug.h>
 
 InsertController::InsertController(SelectionState *selectionState, QObject *parent)
@@ -71,8 +72,37 @@ void InsertController::insert(int index) {
         }
         m_inserted[index] = currentHash;
         revalidateInsert(currentHash);
+        insertSubdirToGame(m_selectionState->currenList()->getItems(), index, currentHash);
         qDebug() << QString("[InsertController] Inserting %1 into Drive number %2.").arg(currentHash).arg(index + 1);
     }
+}
+
+void InsertController::insertSubdirToGame(const QVector<MusicItem> &songs, int &type, const QString &insertHash) {
+    const static QString subDirs[] = {"CD1", "CD2", "CD3", "Radio"};
+    QDir insertDir = FileManager::getInstance().getMusicPath();
+    if (!insertDir.cd(subDirs[type])) {
+        qWarning() << QString("[GameManager] Cd to %1 failed").arg(subDirs[type]);
+        return;
+    }
+    QStringList d = insertDir.entryList();
+    QStringList oggFiles = d.filter(".ogg", Qt::CaseInsensitive);
+    for (const auto &file : std::as_const(oggFiles)) {
+        qDebug() << QString("[GameManager] Removing %1").arg(file);
+        if (!insertDir.remove(file))
+            qWarning() << QString("[GameManager] Removing %1 failed").arg(file);
+    }
+    int i = 1;
+    for (auto &song : songs) {
+        auto path = song.songPath();
+        if(!path.isEmpty()) {
+            QFileInfo into(path);
+            int res = QFile::copy(into.absoluteFilePath(), insertDir.filePath(QString("track%1.ogg").arg(i)));
+            if (!res)
+                qWarning() << QString("[GameManager] Insert of %1 failed").arg(into.fileName());
+            else i++;
+        }
+    }
+    // m_inserted[type] = insertHash;
 }
 
 void InsertController::setInserted(QVector<QString> inserted) {

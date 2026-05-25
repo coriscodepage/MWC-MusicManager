@@ -15,9 +15,9 @@ public:
         RADIO = 3,
     };
     explicit InsertController(SelectionState *selectionState, QObject *parent = nullptr);
-    // const QVector<QString> &getAllInserted();
     void setInserted(QVector<QString> inserted);
     QVector<QString> getAllInserted();
+    void insertSubdirToGame(const QVector<MusicItem> &songs, int &type, const QString &insertHash);
 
 public slots:
     void revalidateInsert(QString hash);

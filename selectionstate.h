@@ -15,6 +15,7 @@ public:
     void setInserted(QVector<QString> inserted);
     const QItemSelection &currentSelection() const;
     const MusicItem *currentSong() const;
+    const ListItem *currenList() const;
     const MusicInfo &currentInfo() const;
     const QString &currentHash() const;
     const QVector<QString> &inserted() const;
